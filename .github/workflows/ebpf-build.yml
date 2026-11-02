@@ -1,0 +1,43 @@
+name: ZeroKernel eBPF BTF Build Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "zerokernel-ebpf/**"
+      - "Cargo.toml"
+      - "zerokernel-common/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "zerokernel-ebpf/**"
+      - "Cargo.toml"
+      - "zerokernel-common/**"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ebpf-compile:
+    name: Ring-0 eBPF Bytecode Compile (BTF Target)
+    runs-on: [self-hosted, Linux, X64, epyc]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install BPF target
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup target add bpfel-unknown-none
+          rustup target list --installed
+      - name: Compile zerokernel-ebpf to BPF bytecode
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo build -p zerokernel-ebpf --target bpfel-unknown-none
+          echo "[OK] zerokernel-ebpf compiled to bpfel-unknown-none bytecode"
+      - name: Verify BPF object exists
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          ls -la target/bpfel-unknown-none/debug/zerokernel-ebpf
+          file target/bpfel-unknown-none/debug/zerokernel-ebpf
