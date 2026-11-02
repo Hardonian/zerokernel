@@ -1,0 +1,23 @@
+[package]
+name = "zerokernel-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "zerokernel"
+path = "src/main.rs"
+
+[dependencies]
+zerokernel-common = { path = "../zerokernel-common" }
+zerokernel-zk-guest = { path = "../zerokernel-zk-guest" }
+anyhow = { workspace = true }
+bincode = { workspace = true }
+clap = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

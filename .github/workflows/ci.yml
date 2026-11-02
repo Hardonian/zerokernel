@@ -1,0 +1,39 @@
+name: ZeroKernel CI & Cryptographic Proof Verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify-workspace:
+    name: ABI, Circuit & Prover Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy strict lints
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run no_std ABI and circuit unit tests
+        run: cargo test --workspace -- --nocapture
+
+      - name: End-to-End Prove & Sub-Millisecond Verify Smoke Flow
+        run: |
+          cargo run --release --bin zerokernel -- prove \
+            --capture-mode simulate-ringbuf \
+            --event-count 4096 \
+            --output /tmp/compliant.zk.json
+          cargo run --release --bin zerokernel -- verify \
+            --receipt-path /tmp/compliant.zk.json

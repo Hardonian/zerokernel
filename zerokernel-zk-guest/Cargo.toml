@@ -1,0 +1,21 @@
+[package]
+name = "zerokernel-zk-guest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "zerokernel_zk_guest"
+path = "src/lib.rs"
+
+[[bin]]
+name = "zerokernel-zk-guest"
+path = "src/main.rs"
+
+[dependencies]
+zerokernel-common = { path = "../zerokernel-common" }
+bincode = { workspace = true }
+sha2 = { workspace = true }
+
+[features]
+default = []

@@ -1,0 +1,12 @@
+[package]
+name = "zerokernel-ebpf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aya-ebpf = "0.1.1"
+zerokernel-common = { path = "../zerokernel-common" }
+
+[[bin]]
+name = "zerokernel-ebpf"
+path = "src/main.rs"

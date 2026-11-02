@@ -1,0 +1,5 @@
+/target
+**/*.rs.bk
+*.zk.json
+.DS_Store
+.env

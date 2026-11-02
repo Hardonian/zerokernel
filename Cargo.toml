@@ -1,0 +1,35 @@
+[workspace]
+members = [
+    "zerokernel-common",
+    "zerokernel-zk-guest",
+    "zerokernel-host",
+]
+exclude = [
+    "zerokernel-ebpf",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Hardonian/zerokernel"
+authors = ["Scott R. M. Hardie <scott@settler.dev>"]
+
+[workspace.dependencies]
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+sha2 = { version = "0.10", default-features = false }
+bincode = "1.3"
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive", "env"] }
+tokio = { version = "1.40", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+hex = "0.4"
+serde_json = "1.0"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+overflow-checks = true
