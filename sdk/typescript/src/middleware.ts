@@ -35,3 +35,4 @@ export async function withZeroKernelAudit<T>(
     compliant: receipt.public_commitment.policy_compliant,
   };
 }
+

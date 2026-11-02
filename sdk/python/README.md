@@ -54,3 +54,4 @@ def run_autonomous_research(prompt: str) -> dict:
 result = run_autonomous_research("Analyze system performance")
 print(f"Receipt Seal: {result['__zk_receipt__']}")
 ```
+

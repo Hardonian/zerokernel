@@ -108,3 +108,4 @@ class ZeroKernelAggregateReceipt:
     master_proof_seal_hex: str
     constituent_window_seals: List[str]
     total_proving_time_ms: int
+

@@ -72,3 +72,4 @@ class ZeroKernelClient:
             cmd.append("--strict")
         res = subprocess.run(cmd, capture_output=True, text=True)
         return res.returncode == 0
+

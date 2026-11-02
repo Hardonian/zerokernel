@@ -47,3 +47,4 @@ export class ZeroKernelVerifier {
     return expectedSeal === receipt.master_proof_seal_hex;
   }
 }
+

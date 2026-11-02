@@ -55,3 +55,4 @@ class ZeroKernelVerifier:
             hasher.update(s.encode("utf-8"))
 
         return hasher.hexdigest() == master_seal
+
