@@ -263,6 +263,20 @@ pub struct EvmVerifierPayload {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct EvmAggregateVerifierPayload {
+    pub vkey_bytes32: String,
+    pub super_merkle_root_bytes32: String,
+    pub policy_id: u32,
+    pub total_windows: u32,
+    pub total_events: u64,
+    pub violations_detected: u64,
+    pub all_windows_compliant: bool,
+    pub master_proof_seal_bytes: String,
+    pub constituent_window_seals: Vec<String>,
+    pub solidity_calldata_abi_encoded: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JsonLdAttestation {
     #[serde(rename = "@context")]
     pub context: Vec<String>,
@@ -278,7 +292,7 @@ pub struct JsonLdAttestation {
 pub struct AttestationSubject {
     pub id: String,
     pub policy_id: u32,
-    pub events_verified: u32,
+    pub events_verified: u64,
     pub policy_compliant: bool,
     pub trace_merkle_root: String,
 }
@@ -673,30 +687,56 @@ async fn main() -> Result<()> {
             output,
         } => {
             let raw = fs::read_to_string(&receipt_path)?;
-            let receipt: ZeroKernelReceipt = serde_json::from_str(&raw)?;
+            if let Ok(agg) = serde_json::from_str::<ZeroKernelAggregateReceipt>(&raw) {
+                let evm_payload = EvmAggregateVerifierPayload {
+                    vkey_bytes32: format!("0x{}", agg.vkey_hash),
+                    super_merkle_root_bytes32: format!("0x{}", agg.super_merkle_hex),
+                    policy_id: agg.public_aggregate_commitment.policy_id,
+                    total_windows: agg.public_aggregate_commitment.total_windows,
+                    total_events: agg.public_aggregate_commitment.total_events_verified,
+                    violations_detected: agg.public_aggregate_commitment.total_violations_detected,
+                    all_windows_compliant: agg.public_aggregate_commitment.all_windows_compliant,
+                    master_proof_seal_bytes: format!("0x{}", agg.master_proof_seal_hex),
+                    constituent_window_seals: agg.constituent_window_seals,
+                    solidity_calldata_abi_encoded: format!(
+                        "0xdd30cdf5{}{}{:>08x}{:>08x}{:>08x}{:>02x}",
+                        agg.vkey_hash,
+                        agg.super_merkle_hex,
+                        agg.public_aggregate_commitment.policy_id,
+                        agg.public_aggregate_commitment.total_windows,
+                        agg.public_aggregate_commitment.total_events_verified,
+                        u8::from(agg.public_aggregate_commitment.all_windows_compliant)
+                    ),
+                };
 
-            let evm_payload = EvmVerifierPayload {
-                vkey_bytes32: format!("0x{}", receipt.vkey_hash),
-                trace_merkle_root_bytes32: format!("0x{}", receipt.commitment_merkle_hex),
-                policy_id: receipt.public_commitment.policy_id,
-                total_events: receipt.public_commitment.total_events_verified,
-                violations_detected: receipt.public_commitment.violations_detected,
-                policy_compliant: receipt.public_commitment.policy_compliant,
-                window_start_ns: receipt.public_commitment.window_start_ns,
-                window_end_ns: receipt.public_commitment.window_end_ns,
-                proof_seal_bytes: format!("0x{}", receipt.proof_seal_hex),
-                solidity_calldata_abi_encoded: format!(
-                    "0x18e8a93d{}{}{:>08x}{:>08x}{:>02x}",
-                    receipt.vkey_hash,
-                    receipt.commitment_merkle_hex,
-                    receipt.public_commitment.policy_id,
-                    receipt.public_commitment.total_events_verified,
-                    u8::from(receipt.public_commitment.policy_compliant)
-                ),
-            };
+                fs::write(&output, serde_json::to_string_pretty(&evm_payload)?)?;
+                info!(path = %output.display(), "Exported EVM aggregate verifier contract payload");
+            } else {
+                let receipt: ZeroKernelReceipt = serde_json::from_str(&raw)?;
 
-            fs::write(&output, serde_json::to_string_pretty(&evm_payload)?)?;
-            info!(path = %output.display(), "Exported EVM verifier contract payload");
+                let evm_payload = EvmVerifierPayload {
+                    vkey_bytes32: format!("0x{}", receipt.vkey_hash),
+                    trace_merkle_root_bytes32: format!("0x{}", receipt.commitment_merkle_hex),
+                    policy_id: receipt.public_commitment.policy_id,
+                    total_events: receipt.public_commitment.total_events_verified,
+                    violations_detected: receipt.public_commitment.violations_detected,
+                    policy_compliant: receipt.public_commitment.policy_compliant,
+                    window_start_ns: receipt.public_commitment.window_start_ns,
+                    window_end_ns: receipt.public_commitment.window_end_ns,
+                    proof_seal_bytes: format!("0x{}", receipt.proof_seal_hex),
+                    solidity_calldata_abi_encoded: format!(
+                        "0x8dcf2f55{}{}{:>08x}{:>08x}{:>02x}",
+                        receipt.vkey_hash,
+                        receipt.commitment_merkle_hex,
+                        receipt.public_commitment.policy_id,
+                        receipt.public_commitment.total_events_verified,
+                        u8::from(receipt.public_commitment.policy_compliant)
+                    ),
+                };
+
+                fs::write(&output, serde_json::to_string_pretty(&evm_payload)?)?;
+                info!(path = %output.display(), "Exported EVM verifier contract payload");
+            }
         }
 
         Commands::ExportAttestation {
@@ -704,14 +744,34 @@ async fn main() -> Result<()> {
             output,
         } => {
             let raw = fs::read_to_string(&receipt_path)?;
-            let receipt: ZeroKernelReceipt = serde_json::from_str(&raw)?;
+            let (seal_hex, vkey_hex, policy_id, events_ver, compliant, merkle_hex) =
+                if let Ok(agg) = serde_json::from_str::<ZeroKernelAggregateReceipt>(&raw) {
+                    (
+                        agg.master_proof_seal_hex,
+                        agg.vkey_hash,
+                        agg.public_aggregate_commitment.policy_id,
+                        agg.public_aggregate_commitment.total_events_verified,
+                        agg.public_aggregate_commitment.all_windows_compliant,
+                        agg.super_merkle_hex,
+                    )
+                } else {
+                    let receipt: ZeroKernelReceipt = serde_json::from_str(&raw)?;
+                    (
+                        receipt.proof_seal_hex,
+                        receipt.vkey_hash,
+                        receipt.public_commitment.policy_id,
+                        u64::from(receipt.public_commitment.total_events_verified),
+                        receipt.public_commitment.policy_compliant,
+                        receipt.commitment_merkle_hex,
+                    )
+                };
 
             let attestation = JsonLdAttestation {
                 context: vec![
                     "https://www.w3.org/2018/credentials/v1".to_string(),
                     "https://w3id.org/security/suites/ed25519-2020/v1".to_string(),
                 ],
-                id: format!("urn:zerokernel:receipt:{}", receipt.proof_seal_hex),
+                id: format!("urn:zerokernel:receipt:{}", seal_hex),
                 r#type: vec![
                     "VerifiableCredential".to_string(),
                     "KernelExecutionAttestation".to_string(),
@@ -719,19 +779,16 @@ async fn main() -> Result<()> {
                 issuer: "did:zerokernel:root-authority".to_string(),
                 issuance_date: "2026-11-02T12:00:00Z".to_string(),
                 credential_subject: AttestationSubject {
-                    id: format!(
-                        "urn:linux:host:policy:{}",
-                        receipt.public_commitment.policy_id
-                    ),
-                    policy_id: receipt.public_commitment.policy_id,
-                    events_verified: receipt.public_commitment.total_events_verified,
-                    policy_compliant: receipt.public_commitment.policy_compliant,
-                    trace_merkle_root: receipt.commitment_merkle_hex,
+                    id: format!("urn:linux:host:policy:{}", policy_id),
+                    policy_id,
+                    events_verified: events_ver,
+                    policy_compliant: compliant,
+                    trace_merkle_root: merkle_hex,
                 },
                 proof: AttestationProof {
                     r#type: "ZeroKernelStarkProof2026".to_string(),
-                    verification_method: format!("did:zerokernel:vkey:{}", receipt.vkey_hash),
-                    proof_value: receipt.proof_seal_hex,
+                    verification_method: format!("did:zerokernel:vkey:{}", vkey_hex),
+                    proof_value: seal_hex,
                 },
             };
 
