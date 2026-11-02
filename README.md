@@ -263,8 +263,22 @@ forge test
 
 Features:
 - **`verifyReceipt`**: Validates the cryptographic proof seal and policy verification key.
+- **`verifyAggregateReceipt`**: Verifies recursive multi-window rollup proofs in a single $O(1)$ gas transaction.
 - **`verifyMerkleProof`**: Verifies binary Merkle inclusion proofs for specific syscall events on-chain.
 - **`stakeAgent` & `slashRogueAgent`**: Autonomous agent staking and slashing mechanism that penalizes agents proving policy non-compliance.
+- **Foundry Deployment Script**: Deploy to any EVM chain via `forge script contracts/script/Deploy.s.sol`.
+
+### Autonomous Agent On-Chain Governance Simulation
+
+Run the automated staking, verification, and rogue agent slashing demonstration:
+
+```bash
+# PowerShell
+powershell -File scripts/test_agent_governance.ps1
+
+# Bash
+./scripts/test_agent_governance.sh
+```
 
 ---
 
@@ -291,7 +305,7 @@ See [`sp1/README.md`](file:///C:/Users/scott/zerokernel/sp1/README.md) for full 
 
 - **Systemd Service**: [`deploy/systemd/zerokernel.service`](file:///C:/Users/scott/zerokernel/deploy/systemd/zerokernel.service) with `AmbientCapabilities=CAP_BPF CAP_NET_ADMIN`.
 - **Kubernetes DaemonSet**: [`deploy/kubernetes/daemonset.yaml`](file:///C:/Users/scott/zerokernel/deploy/kubernetes/daemonset.yaml) with host BTF mounts and Prometheus scraping.
-- **Containerization**: [`deploy/docker/Dockerfile`](file:///C:/Users/scott/zerokernel/deploy/docker/Dockerfile) and [`docker-compose.yml`](file:///C:/Users/scott/zerokernel/deploy/docker/docker-compose.yml) with Prometheus & Grafana.
+- **Containerization**: [`deploy/docker/Dockerfile`](file:///C:/Users/scott/zerokernel/deploy/docker/Dockerfile) and [`docker-compose.yml`](file:///C:/Users/scott/zerokernel/deploy/docker/docker-compose.yml) with Prometheus & pre-provisioned Grafana dashboard ([`zerokernel-overview.json`](file:///C:/Users/scott/zerokernel/deploy/docker/grafana/dashboards/zerokernel-overview.json)).
 
 ---
 

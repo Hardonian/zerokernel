@@ -126,6 +126,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 ### Milestone 7: Solidity Smart Contract Verifier (`contracts/ZeroKernelVerifier.sol`)
 - [x] **On-Chain Receipt Verification**:
   - Validates `verifyReceipt(bytes32,bytes32,uint32,uint32,bool,bytes)`.
+  - Validates `verifyAggregateReceipt(bytes32,bytes32,uint32,uint32,uint32,bool,bytes)` for recursive rollups.
   - Enforces trusted policy verification key registration.
   - Prevents double-spend replay attacks via `verifiedReceipts` mapping.
 - [x] **On-Chain Binary Merkle Proof Verification**:
@@ -133,7 +134,8 @@ This document establishes the strategic pillars, formal milestones, and complete
 - [x] **Autonomous Agent Staking & Slashing Engine**:
   - `stakeAgent(bytes32 agentId)` accepts collateral for autonomous AI agents.
   - `slashRogueAgent` burns or transfers collateral when an audit receipt proves malicious activity.
-- [x] **Foundry Suite & Config**: `contracts/test/ZeroKernelVerifier.t.sol` and `foundry.toml`.
+  - End-to-end on-chain agent governance simulation (`scripts/test_agent_governance.ps1` and `.sh`).
+- [x] **Foundry Suite & Config**: `contracts/test/ZeroKernelVerifier.t.sol`, `contracts/script/Deploy.s.sol`, and `foundry.toml` passing 8/8 tests.
 
 ### Milestone 8: Native SP1 Toolchain Pipeline (`sp1/` & `sp1_driver.rs`)
 - [x] **SP1 Proof Descriptor Engine (`sp1_driver.rs`)**:
@@ -150,7 +152,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 - [x] **Prometheus `/metrics` Exporter**:
   - Built-in asynchronous HTTP exporter in `zerokernel monitor --metrics-port <port>`.
   - Streams `zerokernel_events_total`, `zerokernel_violations_total`, `zerokernel_throughput_events_per_sec`, and proof latency.
-- [x] **Multi-Stage Containerization**: `deploy/docker/Dockerfile` and `deploy/docker/docker-compose.yml` with Prometheus and Grafana.
+- [x] **Multi-Stage Containerization & Grafana Provisioning**: `deploy/docker/Dockerfile` and `deploy/docker/docker-compose.yml` with Prometheus and pre-provisioned Grafana dashboard (`deploy/docker/grafana/dashboards/zerokernel-overview.json`).
 
 ### Milestone 10: Recursive Proof Aggregation (`aggregate` & `verify-aggregate`)
 - [x] **Rolling Window Aggregation Engine**:
