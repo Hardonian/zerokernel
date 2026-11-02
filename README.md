@@ -25,7 +25,7 @@ ZeroKernel unites **Ring-0 Linux eBPF (`aya-ebpf`)** (`sys_enter_execve`, `sys_e
 
 ## Architecture Overview
 
-```
+```text
  [ Linux Kernel Ring-0 ]                     [ User Space Orchestrator ]
 +-------------------------------+             +---------------------------------------+
 |  Tracepoints:                 |             |  zerokernel-host                      |
@@ -67,11 +67,13 @@ ZeroKernel unites **Ring-0 Linux eBPF (`aya-ebpf`)** (`sys_enter_execve`, `sys_e
 ## Quickstart
 
 ### 1. Run Workspace Tests
+
 ```bash
 cargo test --workspace
 ```
 
 ### 2. Prove a Batch of Kernel Trace Events
+
 ```bash
 # Generate proof for 4096 events using the default security policy
 cargo run --release --bin zerokernel -- prove \
@@ -81,6 +83,7 @@ cargo run --release --bin zerokernel -- prove \
 ```
 
 ### 3. Cryptographically Verify the Receipt (<300 μs)
+
 ```bash
 cargo run --release --bin zerokernel -- verify \
   --receipt-path receipt.zk.json \
@@ -88,6 +91,7 @@ cargo run --release --bin zerokernel -- verify \
 ```
 
 ### 4. Run Prover Throughput Benchmarks
+
 ```bash
 cargo run --release --bin zerokernel -- bench --batch-size 32768 --iterations 3
 ```
@@ -124,6 +128,7 @@ cargo run --release --bin zerokernel -- verify \
 ```
 
 ### Export to EVM / Solidity Calldata
+
 ```bash
 cargo run --release --bin zerokernel -- export-evm \
   --receipt-path receipt.zk.json \
@@ -131,6 +136,7 @@ cargo run --release --bin zerokernel -- export-evm \
 ```
 
 ### Export to W3C JSON-LD Verifiable Credential
+
 ```bash
 cargo run --release --bin zerokernel -- export-attestation \
   --receipt-path receipt.zk.json \
