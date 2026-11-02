@@ -685,6 +685,7 @@ name = "zerokernel-zk-guest"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "serde",
  "sha2",
  "zerokernel-common",
 ]
