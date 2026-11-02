@@ -6,3 +6,4 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 echo ">> Running ZeroKernel On-Chain Agent Governance & Slashing Demo..."
 PYTHONPATH="${REPO_ROOT}/sdk/python" python3 "${SCRIPT_DIR}/testnet_agent_governance.py"
+
