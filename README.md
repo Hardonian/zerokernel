@@ -158,6 +158,7 @@ cargo run --release --bin zerokernel -- monitor \
 ```
 
 Metrics exposed at `http://localhost:9100/metrics`:
+
 - `zerokernel_events_total`: Cumulative kernel events verified.
 - `zerokernel_violations_total`: Cumulative security policy violations caught.
 - `zerokernel_throughput_events_per_sec`: Live throughput (~4M+ eps).
@@ -188,16 +189,21 @@ cargo run --release --bin zerokernel -- verify-aggregate \
 ZeroKernel provides both an in-terminal dashboard and a standalone web-based visualizer for inspecting live Merkle trees, throughput, and streaming receipts:
 
 ### Terminal UI (`zerokernel tui`)
+
 ```bash
 cargo run --release --bin zerokernel -- tui
 ```
+
 Displays live ANSI telemetry, engine status, a 4M+ eps throughput gauge, and ASCII binary Merkle tree branches.
 
 ### Interactive Web Dashboard (`zerokernel dashboard`)
+
 ```bash
 cargo run --release --bin zerokernel -- dashboard --port 8080
 ```
+
 Launches an embedded single-page application at `http://localhost:8080`:
+
 - **SVG Binary Merkle Tree Explorer**: Inspect root hashes, internal hashes, and leaf event nodes.
 - **Real-Time Timeline**: Visualizes continuous tumbling windows and proof generation latencies.
 - **REST Endpoints**: `/api/status` for telemetry state and `/api/policies` for active security constraints.
@@ -268,6 +274,7 @@ forge test
 ```
 
 Features:
+
 - **`verifyReceipt`**: Validates the cryptographic proof seal and policy verification key.
 - **`verifyAggregateReceipt`**: Verifies recursive multi-window rollup proofs in a single $O(1)$ gas transaction.
 - **`verifyMerkleProof`**: Verifies binary Merkle inclusion proofs for specific syscall events on-chain.
@@ -320,7 +327,7 @@ See [`sp1/README.md`](file:///C:/Users/scott/zerokernel/sp1/README.md) for full 
 Evaluated on release profile (`opt-level = 3`, `lto = "fat"`, `codegen-units = 1`):
 
 | Batch Size | Trace Eval Time | Trace Throughput | Merkle Tree Build | Merkle Throughput | Receipt Verification |
-|:---:|:---:|:---:|:---:|:---:|:---:|
+| :---: | :---: | :---: | :---: | :---: | :---: |
 | **4,096 events** | 1.06 ms | **3,848,538 eps** | 0.72 ms | **5,626,373 eps** | **289 μs** |
 | **32,768 events** | 8.35 ms | **3,923,027 eps** | 5.70 ms | **5,741,754 eps** | **295 μs** |
 | **65,536 events** | 16.23 ms | **4,037,456 eps** | 10.96 ms | **5,976,072 eps** | **302 μs** |

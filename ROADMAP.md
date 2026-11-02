@@ -6,7 +6,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 
 ## Strategic Core Pillars
 
-```
+```text
 +---------------------------------------------------------------------------------------+
 |                                    ZeroKernel Core Pillars                            |
 +---------------------------+---------------------------+-------------------------------+
@@ -37,11 +37,11 @@ This document establishes the strategic pillars, formal milestones, and complete
 ## Milestone Execution Matrix
 
 | Milestone | Scope & Domain | Status | Deliverables Achieved |
-|:---|:---|:---:|:---|
+| :--- | :--- | :---: | :--- |
 | **M1: ABI & Merkle Foundations** | `zerokernel-common` | **COMPLETE** | `KernelSyscallEvent` 48-byte C-ABI alignment; `SecurityPolicy` CIDR & port matching; `ExtendedSecurityPolicy` 512-bit syscall bitmap; Binary `MerkleTree` root & inclusion proofs; rolling hash accumulator. |
 | **M2: Ring-0 eBPF & XDP Engine** | `zerokernel-ebpf` | **COMPLETE** | Tracepoint probes (`sys_enter_execve`, `sys_enter_openat`, `sys_enter_connect`, `sys_enter_setuid`, `sched_process_fork`, `sched_process_exit`); dual IPv4/IPv6 & TCP/UDP wire-speed XDP firewall; 16 MB ring buffer submission. |
 | **M3: RISC-V 32IM zkVM Circuit** | `zerokernel-zk-guest` | **COMPLETE** | Pure `no_std` guest execution library and binary; batched state transition circuit; Merkle tree inclusion verification; SP1/RISC Zero I/O serialization harness. |
-| **M4: Host Prover & Verifier Suite**| `zerokernel-host` | **COMPLETE** | High-performance CLI orchestrator; deterministic local prover; sub-millisecond cryptographic verifier (<300 μs); strict mode policy validation; Merkle leaf proof embedding and verification. |
+| **M4: Host Prover & Verifier Suite** | `zerokernel-host` | **COMPLETE** | High-performance CLI orchestrator; deterministic local prover; sub-millisecond cryptographic verifier (<300 μs); strict mode policy validation; Merkle leaf proof embedding and verification. |
 | **M5: Autonomous Agent Sandbox & Attestation** | `zerokernel-host` | **COMPLETE** | Autonomous agent lifecycle audit harness (`audit-agent`); rogue exfiltration detection; EVM / Solidity calldata payload generation (`export-evm`); W3C JSON-LD Verifiable Credential generation (`export-attestation`). |
 | **M6: Continuous Telemetry & Benchmarking** | Workspaces & Scripts | **COMPLETE** | Windowed ring buffer streaming monitor daemon (`monitor`); multi-scale benchmark suite (`scripts/run_benchmarks.sh` & `.ps1`); E2E autonomous agent demo (`scripts/audit_agent_demo.sh` & `.ps1`); CI formatting, clippy, and unit test gates. |
 | **M7: Solidity Smart Contract Verifier** | `contracts` | **COMPLETE** | Production `ZeroKernelVerifier.sol` matching `export-evm` calldata; policy registry; on-chain Merkle inclusion proof verification; autonomous agent staking and slashing; Foundry test suite. |
@@ -56,6 +56,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 ## Detailed Milestone Achievements
 
 ### Milestone 1: Zero-Overhead Kernel-zkVM ABI & Merkle Accumulator (`zerokernel-common`)
+
 - [x] **Strict 48-byte `repr(C, align(8))` Memory Layout**: Zero allocation, deterministic cross-architecture compatibility (`x86_64`, `aarch64`, `riscv32im`, `bpfel`).
 - [x] **Comprehensive Hook Identifiers**: Dedicated flags for `execve`, `openat`, `connect`, `setuid`, `sched_process_fork`, `sched_process_exit`, and IPv4/IPv6 XDP frames.
 - [x] **Multi-Dimensional Security Policies**:
@@ -70,6 +71,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 - [x] **Clock Monotonicity Check**: Guarantees nanosecond timestamps never rewind, preventing replay and time-travel attacks.
 
 ### Milestone 2: Ring-0 eBPF & Wire-Speed XDP Telemetry (`zerokernel-ebpf`)
+
 - [x] **Tracepoint Probing**:
   - `sys_enter_execve` (Tracepoint `syscalls/sys_enter_execve`): Process execution audit.
   - `sys_enter_openat` (Tracepoint `syscalls/sys_enter_openat`): Sensitive filesystem access audit.
@@ -83,6 +85,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 - [x] **BTF Verification Gate**: Self-hosted Linux EPYC build workflow (`.github/workflows/ebpf-build.yml`).
 
 ### Milestone 3: RISC-V 32IM Zero-Knowledge Guest Circuit (`zerokernel-zk-guest`)
+
 - [x] **Pure `no_std` Guest Core**: Compiles to `riscv32im-succinct-zkvm-elf` target.
 - [x] **Circuit Invariant Enforcement**: Evaluates thousands of kernel events per batch inside zkVM constraints.
 - [x] **Dual Commitment Output**: Emits both trace rolling hash and full binary Merkle tree root.
@@ -90,6 +93,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 - [x] **Serialized Guest Runner**: Reads input buffers from zkVM environment and commits public outputs to zkVM journal.
 
 ### Milestone 4: Host Prover Orchestration & Sub-Millisecond Verification (`zerokernel-host`)
+
 - [x] **Multi-Backend Support**:
   - `DeterministicLocal`: High-speed SHA-256 STARK proof sealing.
   - `Sp1Cpu` / `Sp1Cuda`: SP1 zkVM execution driver and cycle estimations.
@@ -99,6 +103,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 - [x] **Merkle Proof Integration**: Generates and verifies individual event inclusion proofs (`--include-merkle-leaf`).
 
 ### Milestone 5: Autonomous Agent Sandbox, EVM & JSON-LD Export (`zerokernel-host`)
+
 - [x] **Autonomous Agent Lifecycle Audit (`audit-agent`)**:
   - Simulates or captures agent lifecycle events (`fork` -> `execve` -> `openat` -> `connect` -> `setuid` -> `exit`).
   - Evaluates egress against network and syscall policies.
@@ -111,6 +116,7 @@ This document establishes the strategic pillars, formal milestones, and complete
   - Compatible with In-Toto software supply chain provenance specifications.
 
 ### Milestone 6: Continuous Streaming Monitor & Benchmarking
+
 - [x] **Windowed Ring Buffer Monitor Daemon (`monitor`)**:
   - Ingests streaming telemetry into discrete tumbling windows.
   - Emits chained cryptographic receipts (`receipt_window_{n}.zk.json`).
@@ -124,6 +130,7 @@ This document establishes the strategic pillars, formal milestones, and complete
   - Code formatting checked and passing via `cargo fmt`.
 
 ### Milestone 7: Solidity Smart Contract Verifier (`contracts/ZeroKernelVerifier.sol`)
+
 - [x] **On-Chain Receipt Verification**:
   - Validates `verifyReceipt(bytes32,bytes32,uint32,uint32,bool,bytes)`.
   - Validates `verifyAggregateReceipt(bytes32,bytes32,uint32,uint32,uint32,bool,bytes)` for recursive rollups.
@@ -138,6 +145,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 - [x] **Foundry Suite & Config**: `contracts/test/ZeroKernelVerifier.t.sol`, `contracts/script/Deploy.s.sol`, and `foundry.toml` passing 8/8 tests.
 
 ### Milestone 8: Native SP1 Toolchain Pipeline (`sp1/` & `sp1_driver.rs`)
+
 - [x] **SP1 Proof Descriptor Engine (`sp1_driver.rs`)**:
   - Calculates estimated RISC-V 32IM execution cycles (~120 cycles/event).
   - Computes shard allocation and SP1 STARK execution journals.
@@ -147,6 +155,7 @@ This document establishes the strategic pillars, formal milestones, and complete
   - `sp1/README.md` full operational guide.
 
 ### Milestone 9: Production Packaging & Prometheus Observability
+
 - [x] **Host Systemd Service**: `deploy/systemd/zerokernel.service` with minimal capabilities (`CAP_BPF`, `CAP_NET_ADMIN`).
 - [x] **Kubernetes Node DaemonSet**: `deploy/kubernetes/daemonset.yaml` with BTF volume mount and Prometheus scrape annotations.
 - [x] **Prometheus `/metrics` Exporter**:
@@ -155,6 +164,7 @@ This document establishes the strategic pillars, formal milestones, and complete
 - [x] **Multi-Stage Containerization & Grafana Provisioning**: `deploy/docker/Dockerfile` and `deploy/docker/docker-compose.yml` with Prometheus and pre-provisioned Grafana dashboard (`deploy/docker/grafana/dashboards/zerokernel-overview.json`).
 
 ### Milestone 10: Recursive Proof Aggregation (`aggregate` & `verify-aggregate`)
+
 - [x] **Rolling Window Aggregation Engine**:
   - Aggregates multiple tumbling window receipts into a single constant-sized master cryptographic receipt (`ZeroKernelAggregateReceipt`).
   - Verifies continuous chronological window boundaries ($T_{\text{start}}^{(i)} = T_{\text{end}}^{(i-1)}$) to prohibit temporal gaps or skipped audit intervals.
@@ -166,6 +176,7 @@ This document establishes the strategic pillars, formal milestones, and complete
   - `zerokernel verify-aggregate` validates master SHA-256 seal and constituent seals in **~600-700 μs**.
 
 ### Milestone 11: Terminal UI & Real-Time Web Visualizer Dashboard
+
 - [x] **Interactive Terminal UI (`zerokernel tui`)**:
   - High-density ANSI terminal interface rendering engine status, live throughput gauge (~4M+ eps), ring buffer health, and recent receipt history.
   - Visualizes binary Merkle tree branches directly in terminal stdout with colored hash displays.
@@ -175,6 +186,7 @@ This document establishes the strategic pillars, formal milestones, and complete
   - REST API endpoints `/api/status` and `/api/policies` for external observability integrations.
 
 ### Milestone 12: Python & TypeScript AI Agent SDKs
+
 - [x] **Python SDK (`sdk/python`)**:
   - Package metadata and packaging (`pyproject.toml`).
   - Data models: `KernelSyscallEvent`, `SecurityPolicy`, `ZeroKernelReceipt`, `ZeroKernelAggregateReceipt`.
@@ -194,10 +206,9 @@ This document establishes the strategic pillars, formal milestones, and complete
 Tested on host environment with release profile (`opt-level = 3`, `lto = "fat"`, `codegen-units = 1`):
 
 | Batch Size | Evaluation Time | Evaluation Throughput | Merkle Tree Build Time | Merkle Throughput | Receipt Verification |
-|:---:|:---:|:---:|:---:|:---:|:---:|
+| :---: | :---: | :---: | :---: | :---: | :---: |
 | **4,096 events** | 1.06 ms | **3,848,538 eps** | 0.72 ms | **5,626,373 eps** | **289 μs** |
 | **32,768 events** | 8.35 ms | **3,923,027 eps** | 5.70 ms | **5,741,754 eps** | **295 μs** |
 | **65,536 events** | 16.23 ms | **4,037,456 eps** | 10.96 ms | **5,976,072 eps** | **302 μs** |
 
 All roadmap items, pillars, and milestones are completed in full.
-

@@ -2,7 +2,7 @@
 
 ZeroKernel bridges Linux Ring-0 kernel telemetry (`aya-ebpf`) and Zero-Knowledge Proof systems (`SP1` / `riscv32im`) to deliver verifiable, confidential execution receipts for autonomous agents, host workloads, and cloud environments.
 
-```
+```text
                               ZeroKernel System Architecture
 
      [ Linux Kernel Ring-0 ]                     [ User Space Orchestrator ]
@@ -63,6 +63,7 @@ pub struct KernelSyscallEvent {
 ```
 
 ### Hook Identifier Flags
+
 - `0x0001`: `HOOK_TRACEPOINT_EXECVE`
 - `0x0002`: `HOOK_XDP_IPV4_PACKET`
 - `0x0004`: `HOOK_TRACEPOINT_OPENAT`
@@ -79,12 +80,15 @@ pub struct KernelSyscallEvent {
 ZeroKernel employs two complementary accumulators:
 
 ### A. Rolling Hash Chain
+
 An incremental SHA-256 rolling hash chain that absorbs events sequentially:
 $$\text{RollingHash}_{i} = \text{SHA256}(\text{RollingHash}_{i-1} \parallel \text{EventBytes}_i)$$
 Provides linear-time streaming verification with constant $O(1)$ memory.
 
 ### B. Binary Merkle Tree
+
 A full binary Merkle tree over all events in the trace window.
+
 - Leaves: $\text{Leaf}_i = \text{SHA256}(\text{"ZK\_LEAF\_V1:"} \parallel \text{EventBytes}_i)$
 - Nodes: $\text{Node} = \text{SHA256}(\text{"ZK\_NODE\_V1:"} \parallel \text{Left} \parallel \text{Right})$
 - Allows generating succinct $O(\log N)$ inclusion proofs for verifying specific transactions or audit disputes without sharing the entire trace.
@@ -94,6 +98,7 @@ A full binary Merkle tree over all events in the trace window.
 ## 3. RISC-V 32IM zkVM Guest Circuit (`zerokernel-zk-guest`)
 
 The guest circuit compiles to the `riscv32im-succinct-zkvm-elf` target and enforces mathematical constraints on the trace:
+
 1. **Clock Monotonicity Constraint**:
    $$T_{i} \ge T_{i-1} \quad \forall i \in [1, N)$$
 2. **Privilege Boundary Invariant**:
@@ -110,9 +115,9 @@ The guest circuit compiles to the `riscv32im-succinct-zkvm-elf` target and enfor
 ## 4. Host Orchestration & Verification (`zerokernel-host`)
 
 The host binary provides full orchestration for proving, verifying, and monitoring:
+
 - **Prove**: Synthesizes or consumes RingBuf traces, runs circuit, commits receipt.
 - **Verify**: Verifies receipt seal, vkey hash, and public commitment in under 300 microseconds.
 - **Audit Agent**: Captures agent lifecycle operations and guarantees zero unauthorized network exfiltrations.
 - **Monitor Daemon**: Tumbling window pipeline emitting chained proof receipts.
 - **Export EVM / Attestation**: Bridges off-chain proofs into smart contract calldata and W3C Verifiable Credentials.
-

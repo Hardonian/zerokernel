@@ -56,6 +56,7 @@ cargo run --release --bin zerokernel -- prove \
 ```
 
 The emitted receipt contains:
+
 - `vkey_hash`: The circuit fingerprint.
 - `sp1_descriptor`: Estimated cycles (~120 cycles/event), shard allocation, and STARK execution journal.
 - `proof_seal_hex`: Cryptographic proof seal for sub-millisecond verification.
@@ -71,4 +72,3 @@ cargo run --release --bin zerokernel -- export-evm \
   --receipt-path sp1_receipt.zk.json \
   --output evm_params.json
 ```
-

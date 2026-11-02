@@ -21,6 +21,7 @@ npm install @zerokernel/sdk
 ```
 
 Or when developing locally:
+
 ```bash
 cd sdk/typescript
 npm install
@@ -99,4 +100,3 @@ console.log("Violations:", receipt.public_commitment.violations_detected);
 ## License
 
 Dual-licensed under MIT or Apache 2.0.
-
