@@ -5,7 +5,7 @@ use sha2::{Digest as Sha2Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tracing::{info, warn};
+use tracing::info;
 use zerokernel_common::{
     evaluate_kernel_trace_detailed, AuditViolationRecord, Digest, KernelSyscallEvent, MerkleProof,
     MerkleTree, SecurityPolicy, ZkAuditCommitment, FLAG_ROOT_PRIVILEGE, HOOK_SCHED_PROCESS_EXIT,
@@ -13,6 +13,10 @@ use zerokernel_common::{
     HOOK_TRACEPOINT_OPENAT, HOOK_TRACEPOINT_SETUID, HOOK_XDP_IPV4_PACKET,
 };
 use zerokernel_zk_guest::run_zk_circuit_with_merkle;
+
+pub mod ebpf_loader;
+pub mod metrics;
+pub mod sp1_driver;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -112,6 +116,9 @@ pub enum Commands {
         #[arg(long, default_value_t = 3)]
         max_windows: usize,
 
+        #[arg(long)]
+        metrics_port: Option<u16>,
+
         #[arg(long, default_value = ".")]
         output_dir: PathBuf,
     },
@@ -194,6 +201,9 @@ pub struct ZeroKernelReceipt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chained_prev_receipt_hash: Option<String>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sp1_descriptor: Option<sp1_driver::Sp1ProofDescriptor>,
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub violation_details: Vec<AuditViolationRecord>,
 }
@@ -266,12 +276,9 @@ async fn main() -> Result<()> {
 
             let events = match capture_mode {
                 CaptureMode::EbpfRing0 => {
-                    if !has_ebpf_btf_support() {
-                        warn!("Host lacks /sys/kernel/btf/vmlinux or CAP_BPF; falling back to deterministic RingBuf simulation.");
-                    } else {
-                        info!("Attached to Ring-0 BPF_MAP_TYPE_RINGBUF telemetry feed.");
-                    }
-                    generate_synthetic_ringbuf_trace(event_count, inject_violation)
+                    let mut session = ebpf_loader::LiveEbpfSession::new(None);
+                    let _ = session.attach();
+                    session.poll_events(event_count, inject_violation)?
                 }
                 CaptureMode::SimulateRingbuf => {
                     info!(
@@ -309,6 +316,20 @@ async fn main() -> Result<()> {
                 (None, None)
             };
 
+            let sp1_descriptor = match prover {
+                ProverBackend::Sp1Cpu => {
+                    let (_, desc) =
+                        sp1_driver::Sp1ProverEngine::prove_trace(&policy, &events, false)?;
+                    Some(desc)
+                }
+                ProverBackend::Sp1Cuda => {
+                    let (_, desc) =
+                        sp1_driver::Sp1ProverEngine::prove_trace(&policy, &events, true)?;
+                    Some(desc)
+                }
+                _ => None,
+            };
+
             let receipt = ZeroKernelReceipt {
                 version: "0.1.0-sp1-hypercube".to_string(),
                 prover_backend: format!("{:?}", prover),
@@ -321,6 +342,7 @@ async fn main() -> Result<()> {
                 embedded_merkle_leaf_index: leaf_idx,
                 embedded_merkle_proof: proof_opt,
                 chained_prev_receipt_hash: None,
+                sp1_descriptor,
                 violation_details,
             };
 
@@ -491,6 +513,7 @@ async fn main() -> Result<()> {
         Commands::Monitor {
             window_size,
             max_windows,
+            metrics_port,
             output_dir,
         } => {
             fs::create_dir_all(&output_dir)?;
@@ -498,9 +521,15 @@ async fn main() -> Result<()> {
             info!(
                 window_size,
                 max_windows,
+                metrics_port,
                 out_dir = %output_dir.display(),
                 "Launching continuous ZeroKernel telemetry monitor daemon"
             );
+
+            let metrics_state = metrics::MetricsState::new();
+            if let Some(port) = metrics_port {
+                metrics::start_metrics_server(port, metrics_state.clone()).await;
+            }
 
             let mut prev_hash =
                 "0000000000000000000000000000000000000000000000000000000000000000".to_string();
@@ -512,6 +541,14 @@ async fn main() -> Result<()> {
                 let vkey_hash = compute_circuit_vkey(&policy);
                 let proof_seal = compute_cryptographic_seal(&vkey_hash, &output.commitment)?;
                 let elapsed = start.elapsed().as_millis();
+                let eps = (window_size as f64 / start.elapsed().as_secs_f64().max(1e-9)) as u64;
+
+                metrics_state.update(
+                    window_size as u64,
+                    output.commitment.violations_detected as u64,
+                    elapsed as u64,
+                    eps,
+                );
 
                 let receipt = ZeroKernelReceipt {
                     version: "0.1.0-stream-window".to_string(),
@@ -525,6 +562,7 @@ async fn main() -> Result<()> {
                     embedded_merkle_leaf_index: None,
                     embedded_merkle_proof: None,
                     chained_prev_receipt_hash: Some(prev_hash.clone()),
+                    sp1_descriptor: None,
                     violation_details: Vec::new(),
                 };
 
@@ -577,6 +615,7 @@ async fn main() -> Result<()> {
                 embedded_merkle_leaf_index: None,
                 embedded_merkle_proof: None,
                 chained_prev_receipt_hash: None,
+                sp1_descriptor: None,
                 violation_details: violations,
             };
 
@@ -694,12 +733,6 @@ pub fn default_security_policy() -> SecurityPolicy {
         forbidden_port: 4444,
         allow_root_execution: false,
     }
-}
-
-fn has_ebpf_btf_support() -> bool {
-    std::path::Path::new("/sys/fs/bpf").exists()
-        && std::path::Path::new("/sys/kernel/btf/vmlinux").exists()
-        && std::env::var("USER").unwrap_or_default() == "root"
 }
 
 pub fn generate_synthetic_ringbuf_trace(
@@ -831,6 +864,7 @@ mod tests {
             embedded_merkle_leaf_index: None,
             embedded_merkle_proof: None,
             chained_prev_receipt_hash: None,
+            sp1_descriptor: None,
             violation_details: Vec::new(),
         };
 
@@ -853,5 +887,37 @@ mod tests {
             evaluate_kernel_trace_detailed(&policy, &trace_exfil).expect("eval");
         assert!(!commit_exfil.policy_compliant);
         assert!(!violations_exfil.is_empty());
+    }
+
+    #[test]
+    fn test_sp1_prover_descriptor_generation() {
+        let policy = default_security_policy();
+        let events = generate_synthetic_ringbuf_trace(128, false);
+        let (commitment, desc) =
+            sp1_driver::Sp1ProverEngine::prove_trace(&policy, &events, false).expect("proves");
+        assert!(commitment.policy_compliant);
+        assert_eq!(desc.proof_mode, "SP1-Core-RISCV32IM-STARK");
+        assert!(desc.cycles_estimated > 15_000);
+        assert_eq!(desc.shard_count, 1);
+        assert!(!desc.proof_seal_hex.is_empty());
+    }
+
+    #[test]
+    fn test_prometheus_metrics_rendering() {
+        let state = metrics::MetricsState::new();
+        state.update(4096, 0, 1, 4_000_000);
+        let rendered = state.render_prometheus();
+        assert!(rendered.contains("zerokernel_events_total 4096"));
+        assert!(rendered.contains("zerokernel_violations_total 0"));
+        assert!(rendered.contains("zerokernel_throughput_events_per_sec 4000000"));
+        assert!(rendered.contains("zerokernel_active_windows_total 1"));
+    }
+
+    #[test]
+    fn test_ebpf_loader_session() {
+        let mut session = ebpf_loader::LiveEbpfSession::new(Some("eth0"));
+        assert!(session.attach().is_ok());
+        let events = session.poll_events(64, false).expect("polls");
+        assert_eq!(events.len(), 64);
     }
 }

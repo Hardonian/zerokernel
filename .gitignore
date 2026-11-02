@@ -5,5 +5,7 @@
 evm_verifier_params*.json
 test_policy*.json
 stream_proofs/
+sp1/elf/
+contracts/out/
 .DS_Store
 .env

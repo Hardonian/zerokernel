@@ -139,16 +139,71 @@ cargo run --release --bin zerokernel -- export-attestation \
 
 ---
 
-## Continuous Streaming Monitor Daemon
+## Continuous Streaming Monitor Daemon & Prometheus Observability
 
-ZeroKernel can run as a persistent monitoring daemon that processes streaming RingBuf events in tumbling windows, proving and emitting chained cryptographic receipts:
+ZeroKernel can run as a persistent monitoring daemon that processes streaming RingBuf events in tumbling windows, proving and emitting chained cryptographic receipts while exposing real-time Prometheus metrics:
 
 ```bash
 cargo run --release --bin zerokernel -- monitor \
   --window-size 2048 \
   --max-windows 5 \
+  --metrics-port 9100 \
   --output-dir ./stream_proofs
 ```
+
+Metrics exposed at `http://localhost:9100/metrics`:
+- `zerokernel_events_total`: Cumulative kernel events verified.
+- `zerokernel_violations_total`: Cumulative security policy violations caught.
+- `zerokernel_throughput_events_per_sec`: Live throughput (~4M+ eps).
+- `zerokernel_last_proof_duration_ms`: Proof generation latency per window.
+
+---
+
+## On-Chain Verification & Smart Contracts
+
+ZeroKernel includes a production Solidity verifier contract ([`contracts/ZeroKernelVerifier.sol`](file:///C:/Users/scott/zerokernel/contracts/ZeroKernelVerifier.sol)) for Ethereum, Base, and EVM-compatible chains:
+
+```bash
+# 1. Export proof receipt to Solidity calldata payload
+cargo run --release --bin zerokernel -- export-evm \
+  --receipt-path receipt.zk.json \
+  --output evm_params.json
+
+# 2. Run smart contract tests with Foundry
+forge test
+```
+
+Features:
+- **`verifyReceipt`**: Validates the cryptographic proof seal and policy verification key.
+- **`verifyMerkleProof`**: Verifies binary Merkle inclusion proofs for specific syscall events on-chain.
+- **`stakeAgent` & `slashRogueAgent`**: Autonomous agent staking and slashing mechanism that penalizes agents proving policy non-compliance.
+
+---
+
+## SP1 zkVM Toolchain Pipeline
+
+To compile the guest circuit into a RISC-V 32IM ELF and generate hardware-accelerated STARK proofs:
+
+```bash
+# Build guest ELF
+./sp1/build.sh
+
+# Run SP1 CPU/CUDA proving
+cargo run --release --bin zerokernel -- prove \
+  --prover sp1-cpu \
+  --event-count 4096 \
+  --output sp1_receipt.zk.json
+```
+
+See [`sp1/README.md`](file:///C:/Users/scott/zerokernel/sp1/README.md) for full instructions.
+
+---
+
+## Deployment & Production Packaging
+
+- **Systemd Service**: [`deploy/systemd/zerokernel.service`](file:///C:/Users/scott/zerokernel/deploy/systemd/zerokernel.service) with `AmbientCapabilities=CAP_BPF CAP_NET_ADMIN`.
+- **Kubernetes DaemonSet**: [`deploy/kubernetes/daemonset.yaml`](file:///C:/Users/scott/zerokernel/deploy/kubernetes/daemonset.yaml) with host BTF mounts and Prometheus scraping.
+- **Containerization**: [`deploy/docker/Dockerfile`](file:///C:/Users/scott/zerokernel/deploy/docker/Dockerfile) and [`docker-compose.yml`](file:///C:/Users/scott/zerokernel/deploy/docker/docker-compose.yml) with Prometheus & Grafana.
 
 ---
 

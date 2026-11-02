@@ -153,6 +153,22 @@ impl KernelSyscallEvent {
         (self.flags & HOOK_TRACEPOINT_SETUID) != 0
     }
 
+    pub fn is_sensitive_fs(&self) -> bool {
+        (self.flags & FLAG_SENSITIVE_FS_ACCESS) != 0
+    }
+
+    pub fn is_container_escape(&self) -> bool {
+        (self.flags & FLAG_CONTAINER_ESCAPE) != 0
+    }
+
+    pub fn mark_sensitive_fs(&mut self) {
+        self.flags |= FLAG_SENSITIVE_FS_ACCESS;
+    }
+
+    pub fn mark_container_escape(&mut self) {
+        self.flags |= FLAG_CONTAINER_ESCAPE;
+    }
+
     pub fn is_root(&self) -> bool {
         self.uid == 0 || (self.flags & FLAG_ROOT_PRIVILEGE) != 0
     }
@@ -602,5 +618,29 @@ mod tests {
 
         // System call 59 (execve in base)
         assert!(ext.is_syscall_forbidden(59));
+    }
+
+    #[test]
+    fn test_sensitive_fs_access_violation() {
+        let policy = SecurityPolicy::permissive_audit();
+        let mut event = KernelSyscallEvent {
+            timestamp_ns: 10_000,
+            pid: 1234,
+            tgid: 1234,
+            uid: 1000,
+            syscall_nr: 257, // openat
+            target_ipv4: 0,
+            target_port: 0,
+            flags: HOOK_TRACEPOINT_OPENAT,
+            comm: KernelSyscallEvent::encode_comm("shadow-stealer"),
+        };
+        event.mark_sensitive_fs();
+        assert!(event.is_sensitive_fs());
+
+        let (commitment, records) =
+            evaluate_kernel_trace_detailed(&policy, &[event]).expect("evaluates");
+        assert!(!commitment.policy_compliant);
+        assert_eq!(commitment.violations_detected, 1);
+        assert_eq!(records[0].violation_code, VIOLATION_CODE_SENSITIVE_FS);
     }
 }

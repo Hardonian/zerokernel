@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: zerokernel-node-auditor
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: zerokernel
+    app.kubernetes.io/component: node-security-audit
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zerokernel
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zerokernel
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: zerokernel
+          image: ghcr.io/hardonian/zerokernel:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "monitor"
+            - "--window-size"
+            - "4096"
+            - "--max-windows"
+            - "0"
+            - "--metrics-port"
+            - "9100"
+            - "--output-dir"
+            - "/var/log/zerokernel/receipts"
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - BPF
+                - NET_ADMIN
+                - SYS_RESOURCE
+                - PERFMON
+          resources:
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+          ports:
+            - name: metrics
+              containerPort: 9100
+              protocol: TCP
+          volumeMounts:
+            - name: sys-kernel-btf
+              mountPath: /sys/kernel/btf
+              readOnly: true
+            - name: sys-fs-bpf
+              mountPath: /sys/fs/bpf
+            - name: zerokernel-receipts
+              mountPath: /var/log/zerokernel/receipts
+      volumes:
+        - name: sys-kernel-btf
+          hostPath:
+            path: /sys/kernel/btf
+        - name: sys-fs-bpf
+          hostPath:
+            path: /sys/fs/bpf
+        - name: zerokernel-receipts
+          hostPath:
+            path: /var/log/zerokernel/receipts
+            type: DirectoryOrCreate
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+        - operator: Exists
+          effect: NoExecute
+

@@ -44,6 +44,9 @@ This document establishes the strategic pillars, formal milestones, and complete
 | **M4: Host Prover & Verifier Suite**| `zerokernel-host` | **COMPLETE** | High-performance CLI orchestrator; deterministic local prover; sub-millisecond cryptographic verifier (<300 μs); strict mode policy validation; Merkle leaf proof embedding and verification. |
 | **M5: Autonomous Agent Sandbox & Attestation** | `zerokernel-host` | **COMPLETE** | Autonomous agent lifecycle audit harness (`audit-agent`); rogue exfiltration detection; EVM / Solidity calldata payload generation (`export-evm`); W3C JSON-LD Verifiable Credential generation (`export-attestation`). |
 | **M6: Continuous Telemetry & Benchmarking** | Workspaces & Scripts | **COMPLETE** | Windowed ring buffer streaming monitor daemon (`monitor`); multi-scale benchmark suite (`scripts/run_benchmarks.sh` & `.ps1`); E2E autonomous agent demo (`scripts/audit_agent_demo.sh` & `.ps1`); CI formatting, clippy, and unit test gates. |
+| **M7: Solidity Smart Contract Verifier** | `contracts` | **COMPLETE** | Production `ZeroKernelVerifier.sol` matching `export-evm` calldata; policy registry; on-chain Merkle inclusion proof verification; autonomous agent staking and slashing; Foundry test suite. |
+| **M8: Native SP1 Toolchain Pipeline** | `sp1` & `zerokernel-host` | **COMPLETE** | `sp1_driver.rs` with RISC-V 32IM cycle estimations (~120 cycles/event); shard calculation; STARK journal generation; `sp1/build.sh` and `sp1/build.ps1` ELF compilation automation. |
+| **M9: Production Packaging & Observability** | `deploy` & `zerokernel-host` | **COMPLETE** | Systemd unit (`deploy/systemd/zerokernel.service`); Kubernetes DaemonSet (`deploy/kubernetes/daemonset.yaml`); multi-stage Dockerfile; Prometheus `/metrics` exporter in monitor daemon. |
 
 ---
 
@@ -113,9 +116,38 @@ This document establishes the strategic pillars, formal milestones, and complete
   - 32,768 events: ~8.3 ms eval (~3.92M eps), ~5.7 ms Merkle (~5.74M eps).
   - 65,536 events: ~16.2 ms eval (~4.04M eps), ~10.9 ms Merkle (~5.98M eps).
 - [x] **Automated Test & Build Gateways**:
-  - 10 unit tests across workspace passing.
+  - 14 unit tests across workspace passing.
   - Strict Clippy warnings (`-D warnings`) passing with zero warnings.
   - Code formatting checked and passing via `cargo fmt`.
+
+### Milestone 7: Solidity Smart Contract Verifier (`contracts/ZeroKernelVerifier.sol`)
+- [x] **On-Chain Receipt Verification**:
+  - Validates `verifyReceipt(bytes32,bytes32,uint32,uint32,bool,bytes)`.
+  - Enforces trusted policy verification key registration.
+  - Prevents double-spend replay attacks via `verifiedReceipts` mapping.
+- [x] **On-Chain Binary Merkle Proof Verification**:
+  - `verifyMerkleProof` verifies event leaf inclusion against root directly on EVM.
+- [x] **Autonomous Agent Staking & Slashing Engine**:
+  - `stakeAgent(bytes32 agentId)` accepts collateral for autonomous AI agents.
+  - `slashRogueAgent` burns or transfers collateral when an audit receipt proves malicious activity.
+- [x] **Foundry Suite & Config**: `contracts/test/ZeroKernelVerifier.t.sol` and `foundry.toml`.
+
+### Milestone 8: Native SP1 Toolchain Pipeline (`sp1/` & `sp1_driver.rs`)
+- [x] **SP1 Proof Descriptor Engine (`sp1_driver.rs`)**:
+  - Calculates estimated RISC-V 32IM execution cycles (~120 cycles/event).
+  - Computes shard allocation and SP1 STARK execution journals.
+  - Embeds SP1 descriptor directly into JSON receipts.
+- [x] **SP1 ELF Toolchain Automation**:
+  - `sp1/build.sh` and `sp1/build.ps1` for building `riscv32im-succinct-zkvm-elf`.
+  - `sp1/README.md` full operational guide.
+
+### Milestone 9: Production Packaging & Prometheus Observability
+- [x] **Host Systemd Service**: `deploy/systemd/zerokernel.service` with minimal capabilities (`CAP_BPF`, `CAP_NET_ADMIN`).
+- [x] **Kubernetes Node DaemonSet**: `deploy/kubernetes/daemonset.yaml` with BTF volume mount and Prometheus scrape annotations.
+- [x] **Prometheus `/metrics` Exporter**:
+  - Built-in asynchronous HTTP exporter in `zerokernel monitor --metrics-port <port>`.
+  - Streams `zerokernel_events_total`, `zerokernel_violations_total`, `zerokernel_throughput_events_per_sec`, and proof latency.
+- [x] **Multi-Stage Containerization**: `deploy/docker/Dockerfile` and `deploy/docker/docker-compose.yml` with Prometheus and Grafana.
 
 ---
 

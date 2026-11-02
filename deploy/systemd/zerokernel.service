@@ -1,0 +1,35 @@
+[Unit]
+Description=ZeroKernel Linux Ring-0 eBPF & zkVM Cryptographic Audit Daemon
+Documentation=https://github.com/Hardonian/zerokernel
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/run/zerokernel
+ExecStart=/usr/local/bin/zerokernel monitor --window-size 4096 --max-windows 0 --metrics-port 9100 --output-dir /var/log/zerokernel/receipts
+Restart=always
+RestartSec=5s
+
+# Minimal required Linux capabilities for eBPF and XDP
+AmbientCapabilities=CAP_BPF CAP_NET_ADMIN CAP_SYS_RESOURCE CAP_PERFMON
+CapabilityBoundingSet=CAP_BPF CAP_NET_ADMIN CAP_SYS_RESOURCE CAP_PERFMON
+
+# Sandboxing and security hardening
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/zerokernel /var/run/zerokernel
+ReadOnlyPaths=/sys/kernel/btf /sys/fs/bpf
+LimitMEMLOCK=infinity
+LimitNOFILE=65536
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=zerokernel
+
+[Install]
+WantedBy=multi-user.target
+
