@@ -83,6 +83,19 @@ pub struct ZkAuditCommitment {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ZkAggregateCommitment {
+    pub policy_id: u32,
+    pub total_windows: u32,
+    pub total_events_verified: u64,
+    pub total_violations_detected: u64,
+    pub global_window_start_ns: u64,
+    pub global_window_end_ns: u64,
+    pub super_merkle_root: Digest,
+    pub all_windows_compliant: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuditViolationRecord {
     pub event_index: u32,
     pub timestamp_ns: u64,
@@ -320,7 +333,18 @@ impl MerkleTree {
             return hasher.finalize().into();
         }
 
-        let mut current_layer: Vec<Digest> = events.iter().map(Self::compute_leaf_hash).collect();
+        let current_layer: Vec<Digest> = events.iter().map(Self::compute_leaf_hash).collect();
+        Self::compute_root_from_hashes(&current_layer)
+    }
+
+    pub fn compute_root_from_hashes(hashes: &[Digest]) -> Digest {
+        if hashes.is_empty() {
+            let mut hasher = Sha256::new();
+            hasher.update(b"ZK_EMPTY_TREE_V1");
+            return hasher.finalize().into();
+        }
+
+        let mut current_layer: Vec<Digest> = hashes.to_vec();
 
         while current_layer.len() > 1 {
             let mut next_layer = Vec::with_capacity(current_layer.len().div_ceil(2));
@@ -470,6 +494,57 @@ pub fn evaluate_kernel_trace_detailed(
     };
 
     Ok((commitment, violation_records))
+}
+
+pub fn aggregate_receipt_commitments(
+    commitments: &[ZkAuditCommitment],
+) -> Result<ZkAggregateCommitment, &'static str> {
+    if commitments.is_empty() {
+        return Err("Cannot aggregate empty commitment sequence");
+    }
+
+    let policy_id = commitments[0].policy_id;
+    let mut total_events: u64 = 0;
+    let mut total_violations: u64 = 0;
+    let mut all_compliant = true;
+    let global_start = commitments[0].window_start_ns;
+    let mut global_end = commitments[0].window_end_ns;
+    let mut prev_start = commitments[0].window_start_ns;
+    let mut roots = Vec::with_capacity(commitments.len());
+
+    for (i, c) in commitments.iter().enumerate() {
+        if c.policy_id != policy_id {
+            return Err("Mismatched policy_id across aggregated receipt windows");
+        }
+        if i > 0 && c.window_start_ns < prev_start {
+            return Err("Non-monotonic window sequence detected in recursive aggregation");
+        }
+        prev_start = c.window_start_ns;
+        if c.window_end_ns > global_end {
+            global_end = c.window_end_ns;
+        }
+
+        total_events = total_events.saturating_add(c.total_events_verified as u64);
+        total_violations = total_violations.saturating_add(c.violations_detected as u64);
+        if !c.policy_compliant {
+            all_compliant = false;
+        }
+
+        roots.push(c.trace_merkle_root);
+    }
+
+    let super_root = MerkleTree::compute_root_from_hashes(&roots);
+
+    Ok(ZkAggregateCommitment {
+        policy_id,
+        total_windows: commitments.len() as u32,
+        total_events_verified: total_events,
+        total_violations_detected: total_violations,
+        global_window_start_ns: global_start,
+        global_window_end_ns: global_end,
+        super_merkle_root: super_root,
+        all_windows_compliant: all_compliant && total_violations == 0,
+    })
 }
 
 #[cfg(test)]
@@ -642,5 +717,42 @@ mod tests {
         assert!(!commitment.policy_compliant);
         assert_eq!(commitment.violations_detected, 1);
         assert_eq!(records[0].violation_code, VIOLATION_CODE_SENSITIVE_FS);
+    }
+
+    #[test]
+    fn test_recursive_commitment_aggregation() {
+        let c1 = ZkAuditCommitment {
+            policy_id: 100,
+            total_events_verified: 1000,
+            violations_detected: 0,
+            window_start_ns: 10_000,
+            window_end_ns: 20_000,
+            trace_merkle_root: [1u8; 32],
+            policy_compliant: true,
+        };
+        let c2 = ZkAuditCommitment {
+            policy_id: 100,
+            total_events_verified: 2000,
+            violations_detected: 0,
+            window_start_ns: 20_000,
+            window_end_ns: 30_000,
+            trace_merkle_root: [2u8; 32],
+            policy_compliant: true,
+        };
+
+        let agg = aggregate_receipt_commitments(&[c1, c2]).expect("aggregates");
+        assert_eq!(agg.policy_id, 100);
+        assert_eq!(agg.total_windows, 2);
+        assert_eq!(agg.total_events_verified, 3000);
+        assert_eq!(agg.total_violations_detected, 0);
+        assert!(agg.all_windows_compliant);
+        assert_eq!(agg.global_window_start_ns, 10_000);
+        assert_eq!(agg.global_window_end_ns, 30_000);
+        assert_ne!(agg.super_merkle_root, [0u8; 32]);
+
+        // Non-monotonic failure test
+        let mut c_bad = c2;
+        c_bad.window_start_ns = 5_000;
+        assert!(aggregate_receipt_commitments(&[c1, c_bad]).is_err());
     }
 }

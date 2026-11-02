@@ -1,0 +1,24 @@
+{
+  "name": "@zerokernel/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for ZeroKernel Ring-0 eBPF & zkVM Cryptographic Audit Engine",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node dist/test/sdk.test.js"
+  },
+  "keywords": [
+    "zerokernel",
+    "zk-ebpf",
+    "zkvm",
+    "sp1",
+    "ai-agent",
+    "security-audit"
+  ],
+  "author": "Scott R. M. Hardie <scott@settler.dev>",
+  "license": "MIT OR Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^26.6.6"
+  }
+}

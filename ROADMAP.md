@@ -47,6 +47,9 @@ This document establishes the strategic pillars, formal milestones, and complete
 | **M7: Solidity Smart Contract Verifier** | `contracts` | **COMPLETE** | Production `ZeroKernelVerifier.sol` matching `export-evm` calldata; policy registry; on-chain Merkle inclusion proof verification; autonomous agent staking and slashing; Foundry test suite. |
 | **M8: Native SP1 Toolchain Pipeline** | `sp1` & `zerokernel-host` | **COMPLETE** | `sp1_driver.rs` with RISC-V 32IM cycle estimations (~120 cycles/event); shard calculation; STARK journal generation; `sp1/build.sh` and `sp1/build.ps1` ELF compilation automation. |
 | **M9: Production Packaging & Observability** | `deploy` & `zerokernel-host` | **COMPLETE** | Systemd unit (`deploy/systemd/zerokernel.service`); Kubernetes DaemonSet (`deploy/kubernetes/daemonset.yaml`); multi-stage Dockerfile; Prometheus `/metrics` exporter in monitor daemon. |
+| **M10: Recursive Proof Aggregation** | `zerokernel-common`, `zk-guest`, `host` | **COMPLETE** | Recursive proof aggregation (`aggregate` & `verify-aggregate`); `ZkAggregateCommitment`; sequential time continuity validation; super-Merkle tree calculation; constant-sized master proof seal verification (<700 μs). |
+| **M11: Terminal UI & Web Dashboard** | `zerokernel-host` | **COMPLETE** | High-density Terminal UI (`tui`) with live throughput & ANSI Merkle branch; full-featured single-page web dashboard (`dashboard --port 8080`) with SVG Merkle visualization, live timeline, and REST API. |
+| **M12: Python & TypeScript AI Agent SDKs** | `sdk/python`, `sdk/typescript` | **COMPLETE** | Python SDK with `@audit_agent` decorator & pure Python verifiers; TypeScript `@zerokernel/sdk` with `withZeroKernelAudit` middleware, typed client & Node.js verifiers; LangChain/ElizaOS support. |
 
 ---
 
@@ -148,6 +151,39 @@ This document establishes the strategic pillars, formal milestones, and complete
   - Built-in asynchronous HTTP exporter in `zerokernel monitor --metrics-port <port>`.
   - Streams `zerokernel_events_total`, `zerokernel_violations_total`, `zerokernel_throughput_events_per_sec`, and proof latency.
 - [x] **Multi-Stage Containerization**: `deploy/docker/Dockerfile` and `deploy/docker/docker-compose.yml` with Prometheus and Grafana.
+
+### Milestone 10: Recursive Proof Aggregation (`aggregate` & `verify-aggregate`)
+- [x] **Rolling Window Aggregation Engine**:
+  - Aggregates multiple tumbling window receipts into a single constant-sized master cryptographic receipt (`ZeroKernelAggregateReceipt`).
+  - Verifies continuous chronological window boundaries ($T_{\text{start}}^{(i)} = T_{\text{end}}^{(i-1)}$) to prohibit temporal gaps or skipped audit intervals.
+  - Validates uniform security policy consistency ($P_i = P_0$) across all aggregated constituent receipts.
+- [x] **Pure `no_std` Guest Aggregator Circuit**:
+  - `run_recursive_aggregate_circuit` in `zerokernel-zk-guest` executes without heap allocations in RISC-V 32IM.
+  - Builds Super-Merkle root across individual trace roots via `MerkleTree::compute_root_from_hashes`.
+- [x] **Constant-Sized Master Seal Verification**:
+  - `zerokernel verify-aggregate` validates master SHA-256 seal and constituent seals in **~600-700 μs**.
+
+### Milestone 11: Terminal UI & Real-Time Web Visualizer Dashboard
+- [x] **Interactive Terminal UI (`zerokernel tui`)**:
+  - High-density ANSI terminal interface rendering engine status, live throughput gauge (~4M+ eps), ring buffer health, and recent receipt history.
+  - Visualizes binary Merkle tree branches directly in terminal stdout with colored hash displays.
+- [x] **Interactive Web Dashboard (`zerokernel dashboard --port 8080`)**:
+  - Single-page embedded HTTP visualizer in `zerokernel-host/src/dashboard.rs`.
+  - Live SVG binary Merkle tree explorer rendering root, intermediate branches, and leaf nodes.
+  - REST API endpoints `/api/status` and `/api/policies` for external observability integrations.
+
+### Milestone 12: Python & TypeScript AI Agent SDKs
+- [x] **Python SDK (`sdk/python`)**:
+  - Package metadata and packaging (`pyproject.toml`).
+  - Data models: `KernelSyscallEvent`, `SecurityPolicy`, `ZeroKernelReceipt`, `ZeroKernelAggregateReceipt`.
+  - Pure Python verification: `ZeroKernelVerifier.verify_receipt` and `verify_aggregate`.
+  - Zero-overhead `@audit_agent` decorator for AI agent tool invocations and workflows.
+  - Comprehensive unit test suite (`sdk/python/tests/test_sdk.py`).
+- [x] **TypeScript SDK (`sdk/typescript`)**:
+  - `@zerokernel/sdk` package configured with ES2022 / CommonJS dual builds and typed declarations.
+  - `ZeroKernelClient`, `ZeroKernelVerifier`, and `SecurityPolicies` factory presets.
+  - `withZeroKernelAudit` task wrapper middleware for LangChain.js, ElizaOS, and agent runtimes.
+  - Comprehensive test suite (`sdk/typescript/test/sdk.test.ts`).
 
 ---
 

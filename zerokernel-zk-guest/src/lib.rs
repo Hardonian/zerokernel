@@ -4,8 +4,9 @@ extern crate alloc;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 use zerokernel_common::{
-    evaluate_kernel_trace, evaluate_kernel_trace_detailed, AuditViolationRecord, Digest,
-    KernelSyscallEvent, MerkleProof, MerkleTree, SecurityPolicy, ZkAuditCommitment,
+    aggregate_receipt_commitments, evaluate_kernel_trace, evaluate_kernel_trace_detailed,
+    AuditViolationRecord, Digest, KernelSyscallEvent, MerkleProof, MerkleTree, SecurityPolicy,
+    ZkAggregateCommitment, ZkAuditCommitment,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -61,6 +62,13 @@ pub fn verify_subtrace_membership(
     MerkleTree::verify_proof(merkle_root, &leaf_hash, proof)
 }
 
+/// Executes recursive verification and aggregation over multiple trace window commitments.
+pub fn run_recursive_aggregate_circuit(commitments: &[ZkAuditCommitment]) -> ZkAggregateCommitment {
+    aggregate_receipt_commitments(commitments).expect(
+        "Aggregate circuit invariant violated: mismatched policies or non-monotonic windows",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,5 +119,40 @@ mod tests {
         let proof = MerkleTree::generate_proof(&events, 2).expect("proof generated");
         let valid = verify_subtrace_membership(&output.merkle_tree_root, &events[2], &proof);
         assert!(valid);
+    }
+
+    #[test]
+    fn test_guest_recursive_aggregation() {
+        let policy = SecurityPolicy::permissive_audit();
+        let events1 = [KernelSyscallEvent {
+            timestamp_ns: 100,
+            pid: 1,
+            tgid: 1,
+            uid: 1000,
+            syscall_nr: 1,
+            target_ipv4: 0,
+            target_port: 0,
+            flags: 0,
+            comm: [0; 16],
+        }];
+        let events2 = [KernelSyscallEvent {
+            timestamp_ns: 200,
+            pid: 1,
+            tgid: 1,
+            uid: 1000,
+            syscall_nr: 1,
+            target_ipv4: 0,
+            target_port: 0,
+            flags: 0,
+            comm: [0; 16],
+        }];
+
+        let c1 = run_zk_circuit(&policy, &events1);
+        let c2 = run_zk_circuit(&policy, &events2);
+
+        let agg = run_recursive_aggregate_circuit(&[c1, c2]);
+        assert_eq!(agg.total_windows, 2);
+        assert_eq!(agg.total_events_verified, 2);
+        assert!(agg.all_windows_compliant);
     }
 }

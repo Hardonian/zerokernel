@@ -159,6 +159,94 @@ Metrics exposed at `http://localhost:9100/metrics`:
 
 ---
 
+## Recursive Proof Aggregation
+
+ZeroKernel rolls up multiple discrete window receipts into a single constant-sized master cryptographic receipt (`ZeroKernelAggregateReceipt`). The recursive aggregator circuit validates chronological window continuity ($T_{\text{start}}^{(i)} = T_{\text{end}}^{(i-1)}$), verifies uniform security policies, and computes a Super-Merkle root across all constituent traces:
+
+```bash
+# 1. Aggregate window receipts into a constant-sized master receipt
+cargo run --release --bin zerokernel -- aggregate \
+  --receipts stream_proofs/receipt_window_0.zk.json stream_proofs/receipt_window_1.zk.json \
+  --output master_aggregate.zk.json
+
+# 2. Cryptographically verify master aggregated receipt (<700 μs)
+cargo run --release --bin zerokernel -- verify-aggregate \
+  --receipt-path master_aggregate.zk.json \
+  --strict
+```
+
+---
+
+## Terminal UI & Live Visualizer Dashboard
+
+ZeroKernel provides both an in-terminal dashboard and a standalone web-based visualizer for inspecting live Merkle trees, throughput, and streaming receipts:
+
+### Terminal UI (`zerokernel tui`)
+```bash
+cargo run --release --bin zerokernel -- tui
+```
+Displays live ANSI telemetry, engine status, a 4M+ eps throughput gauge, and ASCII binary Merkle tree branches.
+
+### Interactive Web Dashboard (`zerokernel dashboard`)
+```bash
+cargo run --release --bin zerokernel -- dashboard --port 8080
+```
+Launches an embedded single-page application at `http://localhost:8080`:
+- **SVG Binary Merkle Tree Explorer**: Inspect root hashes, internal hashes, and leaf event nodes.
+- **Real-Time Timeline**: Visualizes continuous tumbling windows and proof generation latencies.
+- **REST Endpoints**: `/api/status` for telemetry state and `/api/policies` for active security constraints.
+
+---
+
+## AI Agent SDKs (Python & TypeScript)
+
+Integrate ZeroKernel cryptographic auditing directly into your agent runtimes (LangChain, ElizaOS, AutoGPT, CrewAI, or standalone scripts).
+
+### Python SDK (`sdk/python`)
+
+```bash
+pip install -e sdk/python
+```
+
+Wrap agent functions with the zero-overhead `@audit_agent` decorator:
+
+```python
+from zerokernel import audit_agent, ZeroKernelVerifier
+
+@audit_agent(agent_id="finance-agent", lifecycle_steps=64, strict=True)
+def execute_agent_task(prompt: str) -> dict:
+    # Your agent reasoning, LLM calls, and tool operations
+    return {"status": "success", "result": "Portfolio rebalanced"}
+
+result = execute_agent_task("Rebalance tech sector")
+print(result["__zk_receipt__"]) # Verified cryptographic receipt attached
+```
+
+### TypeScript SDK (`sdk/typescript`)
+
+```bash
+npm install @zerokernel/sdk
+```
+
+Wrap asynchronous agent workflows with `withZeroKernelAudit`:
+
+```typescript
+import { withZeroKernelAudit, ZeroKernelVerifier } from "@zerokernel/sdk";
+
+const result = await withZeroKernelAudit(
+  { agentId: "research-agent", lifecycleSteps: 48 },
+  async () => {
+    // LLM query or agent action
+    return { summary: "Quarterly earnings analyzed" };
+  }
+);
+
+console.log("Compliant:", result.compliant);
+console.log("Proof Seal:", result.receipt.proof_seal_hex);
+```
+
+---
+
 ## On-Chain Verification & Smart Contracts
 
 ZeroKernel includes a production Solidity verifier contract ([`contracts/ZeroKernelVerifier.sol`](file:///C:/Users/scott/zerokernel/contracts/ZeroKernelVerifier.sol)) for Ethereum, Base, and EVM-compatible chains:

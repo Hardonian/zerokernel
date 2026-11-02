@@ -9,3 +9,7 @@ sp1/elf/
 contracts/out/
 .DS_Store
 .env
+**/__pycache__/
+*.egg-info/
+sdk/typescript/node_modules/
+sdk/typescript/dist/
