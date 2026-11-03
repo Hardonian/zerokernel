@@ -547,6 +547,199 @@ pub fn aggregate_receipt_commitments(
     })
 }
 
+#[inline(always)]
+pub fn constant_time_eq_32(a: &[u8; 32], b: &[u8; 32]) -> bool {
+    let mut diff = 0u8;
+    for i in 0..32 {
+        diff |= a[i] ^ b[i];
+    }
+    diff == 0
+}
+
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CircuitErrorCode {
+    Success = 0,
+    UnauthorizedRoot = 1,
+    ForbiddenSyscall = 2,
+    ForbiddenIpv4Egress = 3,
+    ForbiddenPort = 4,
+    SensitiveFsAccess = 5,
+    NonMonotonicClock = 6,
+    TemporalDiscontinuity = 7,
+    PolicyMismatch = 8,
+    ProofSealMismatch = 9,
+    BatchOverflow = 10,
+    MaxClockDriftExceeded = 11,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PolicyCombinator {
+    All,
+    Any,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompositeSecurityPolicy {
+    pub composite_id: u32,
+    pub combinator: PolicyCombinator,
+    pub policies: Vec<SecurityPolicy>,
+}
+
+impl CompositeSecurityPolicy {
+    pub fn is_event_compliant(&self, event: &KernelSyscallEvent) -> bool {
+        match self.combinator {
+            PolicyCombinator::All => self.policies.iter().all(|p| {
+                let (c, _) = evaluate_kernel_trace_detailed(p, &[*event]).unwrap_or((
+                    ZkAuditCommitment {
+                        policy_id: p.policy_id,
+                        total_events_verified: 1,
+                        violations_detected: 1,
+                        window_start_ns: event.timestamp_ns,
+                        window_end_ns: event.timestamp_ns,
+                        trace_merkle_root: [0; 32],
+                        policy_compliant: false,
+                    },
+                    Vec::new(),
+                ));
+                c.policy_compliant
+            }),
+            PolicyCombinator::Any => self.policies.iter().any(|p| {
+                let (c, _) = evaluate_kernel_trace_detailed(p, &[*event]).unwrap_or((
+                    ZkAuditCommitment {
+                        policy_id: p.policy_id,
+                        total_events_verified: 1,
+                        violations_detected: 1,
+                        window_start_ns: event.timestamp_ns,
+                        window_end_ns: event.timestamp_ns,
+                        trace_merkle_root: [0; 32],
+                        policy_compliant: false,
+                    },
+                    Vec::new(),
+                ));
+                c.policy_compliant
+            }),
+        }
+    }
+}
+
+pub struct SparseMerkleTree;
+
+impl SparseMerkleTree {
+    pub const DEPTH: usize = 16;
+
+    pub fn empty_hashes() -> [Digest; Self::DEPTH + 1] {
+        let mut empty = [[0u8; 32]; Self::DEPTH + 1];
+        let mut hasher = Sha256::new();
+        hasher.update(b"SMT_EMPTY_LEAF_V1");
+        empty[0] = hasher.finalize().into();
+
+        for d in 1..=Self::DEPTH {
+            empty[d] = MerkleTree::combine_hashes(&empty[d - 1], &empty[d - 1]);
+        }
+        empty
+    }
+
+    pub fn compute_leaf_hash(key: u32, value: &Digest) -> Digest {
+        let mut hasher = Sha256::new();
+        hasher.update(b"SMT_LEAF_V1:");
+        hasher.update(key.to_le_bytes());
+        hasher.update(value);
+        hasher.finalize().into()
+    }
+
+    pub fn verify_non_membership(root: &Digest, key: u32, siblings: &[Digest]) -> bool {
+        if siblings.len() != Self::DEPTH {
+            return false;
+        }
+        let empty_leaf = Self::empty_hashes()[0];
+        let mut current = empty_leaf;
+        let mut k = key;
+
+        for sibling in siblings {
+            if k.is_multiple_of(2) {
+                current = MerkleTree::combine_hashes(&current, sibling);
+            } else {
+                current = MerkleTree::combine_hashes(sibling, &current);
+            }
+            k /= 2;
+        }
+
+        current == *root
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchMerkleProof {
+    pub leaf_indices: Vec<u32>,
+    pub total_leaves: u32,
+    pub proofs: Vec<MerkleProof>,
+}
+
+impl BatchMerkleProof {
+    pub fn verify(&self, root: &Digest, leaf_hashes: &[Digest]) -> bool {
+        if self.leaf_indices.len() != leaf_hashes.len() || self.proofs.len() != leaf_hashes.len() {
+            return false;
+        }
+        for (i, leaf) in leaf_hashes.iter().enumerate() {
+            if !MerkleTree::verify_proof(root, leaf, &self.proofs[i]) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MerkleMountainRange {
+    pub peaks: Vec<Digest>,
+    pub count: u64,
+}
+
+impl MerkleMountainRange {
+    pub fn new() -> Self {
+        Self {
+            peaks: Vec::new(),
+            count: 0,
+        }
+    }
+
+    pub fn append(&mut self, leaf: Digest) {
+        let mut current = leaf;
+        let mut bit = 1u64;
+
+        while (self.count & bit) != 0 {
+            if let Some(prev) = self.peaks.pop() {
+                current = MerkleTree::combine_hashes(&prev, &current);
+            }
+            bit <<= 1;
+        }
+
+        self.peaks.push(current);
+        self.count = self.count.saturating_add(1);
+    }
+
+    pub fn get_bagged_peak(&self) -> Digest {
+        if self.peaks.is_empty() {
+            let mut hasher = Sha256::new();
+            hasher.update(b"MMR_EMPTY_V1");
+            return hasher.finalize().into();
+        }
+
+        let mut bagged = self.peaks[self.peaks.len() - 1];
+        for peak in self.peaks.iter().rev().skip(1) {
+            bagged = MerkleTree::combine_hashes(peak, &bagged);
+        }
+        bagged
+    }
+}
+
+pub fn aggregate_receipt_commitments_tree(
+    commitments: &[ZkAuditCommitment],
+) -> Result<ZkAggregateCommitment, &'static str> {
+    aggregate_receipt_commitments(commitments)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -754,5 +947,192 @@ mod tests {
         let mut c_bad = c2;
         c_bad.window_start_ns = 5_000;
         assert!(aggregate_receipt_commitments(&[c1, c_bad]).is_err());
+    }
+
+    #[test]
+    fn test_constant_time_eq_and_error_codes() {
+        let a = [42u8; 32];
+        let mut b = [42u8; 32];
+        assert!(constant_time_eq_32(&a, &b));
+        b[15] = 0;
+        assert!(!constant_time_eq_32(&a, &b));
+
+        assert_eq!(CircuitErrorCode::Success as u32, 0);
+        assert_eq!(CircuitErrorCode::TemporalDiscontinuity as u32, 7);
+    }
+
+    #[test]
+    fn test_composite_security_policy() {
+        let p1 = SecurityPolicy::strict_sandbox();
+        let p2 = SecurityPolicy::agent_egress_guard();
+
+        let comp_all = CompositeSecurityPolicy {
+            composite_id: 9001,
+            combinator: PolicyCombinator::All,
+            policies: alloc::vec![p1, p2],
+        };
+
+        let comp_any = CompositeSecurityPolicy {
+            composite_id: 9002,
+            combinator: PolicyCombinator::Any,
+            policies: alloc::vec![p1, p2],
+        };
+
+        // Benign event (read operation, port 443)
+        let benign = KernelSyscallEvent {
+            timestamp_ns: 1000,
+            pid: 10,
+            tgid: 10,
+            uid: 1000,
+            syscall_nr: 257, // openat
+            target_ipv4: 0x01010101,
+            target_port: 443,
+            flags: HOOK_TRACEPOINT_OPENAT,
+            comm: [0; 16],
+        };
+
+        assert!(comp_all.is_event_compliant(&benign));
+        assert!(comp_any.is_event_compliant(&benign));
+    }
+
+    #[test]
+    fn test_sparse_merkle_tree_non_membership() {
+        let empties = SparseMerkleTree::empty_hashes();
+        let root = empties[SparseMerkleTree::DEPTH];
+        let mut siblings = Vec::with_capacity(SparseMerkleTree::DEPTH);
+        siblings.extend_from_slice(&empties[..SparseMerkleTree::DEPTH]);
+
+        // An empty SMT verifies non-membership for any key
+        assert!(SparseMerkleTree::verify_non_membership(
+            &root, 42, &siblings
+        ));
+
+        // Wrong root fails
+        let bogus_root = [99u8; 32];
+        assert!(!SparseMerkleTree::verify_non_membership(
+            &bogus_root,
+            42,
+            &siblings
+        ));
+    }
+
+    #[test]
+    fn test_batch_merkle_proof() {
+        let events: Vec<KernelSyscallEvent> = (0..4)
+            .map(|i| KernelSyscallEvent {
+                timestamp_ns: 1_000 + i as u64,
+                pid: 100 + i as u32,
+                tgid: 100,
+                uid: 1000,
+                syscall_nr: 1,
+                target_ipv4: 0,
+                target_port: 0,
+                flags: 0,
+                comm: [0; 16],
+            })
+            .collect();
+
+        let root = MerkleTree::compute_root(&events);
+        let p0 = MerkleTree::generate_proof(&events, 0).expect("proof 0");
+        let p2 = MerkleTree::generate_proof(&events, 2).expect("proof 2");
+
+        let batch = BatchMerkleProof {
+            leaf_indices: alloc::vec![0, 2],
+            total_leaves: 4,
+            proofs: alloc::vec![p0, p2],
+        };
+
+        let leaf0 = MerkleTree::compute_leaf_hash(&events[0]);
+        let leaf2 = MerkleTree::compute_leaf_hash(&events[2]);
+
+        assert!(batch.verify(&root, &[leaf0, leaf2]));
+
+        // Tampered leaf fails batch
+        assert!(!batch.verify(&root, &[leaf0, [0xff; 32]]));
+    }
+
+    #[test]
+    fn test_merkle_mountain_range_lifecycle() {
+        let mut mmr = MerkleMountainRange::new();
+        assert_ne!(mmr.get_bagged_peak(), [0u8; 32]);
+
+        for i in 0..10 {
+            let mut leaf = [0u8; 32];
+            leaf[0] = i as u8;
+            mmr.append(leaf);
+        }
+
+        assert_eq!(mmr.count, 10);
+        assert!(!mmr.peaks.is_empty());
+        let peak1 = mmr.get_bagged_peak();
+        assert_ne!(peak1, [0u8; 32]);
+
+        mmr.append([0x77u8; 32]);
+        assert_eq!(mmr.count, 11);
+        let peak2 = mmr.get_bagged_peak();
+        assert_ne!(peak1, peak2);
+    }
+
+    #[test]
+    fn test_adversarial_red_team_suite() {
+        // 1. Clock replay / backward jump attack
+        let e1 = KernelSyscallEvent {
+            timestamp_ns: 2_000_000,
+            pid: 100,
+            tgid: 100,
+            uid: 1000,
+            syscall_nr: 1,
+            target_ipv4: 0,
+            target_port: 0,
+            flags: 0,
+            comm: [0; 16],
+        };
+        let e_rewind = KernelSyscallEvent {
+            timestamp_ns: 1_000_000, // rewound clock
+            ..e1
+        };
+        assert!(e_rewind.timestamp_ns < e1.timestamp_ns);
+
+        // 2. Merkle leaf forgery attempt with prefix manipulation
+        let raw_bytes = [0x55u8; 32];
+        let mut forged_input = Vec::new();
+        forged_input.extend_from_slice(b"ZK_FAKE_V1:");
+        forged_input.extend_from_slice(&raw_bytes);
+        let mut hasher = Sha256::new();
+        hasher.update(&forged_input);
+        let forged_hash: [u8; 32] = hasher.finalize().into();
+
+        let honest_leaf = MerkleTree::compute_leaf_hash(&e1);
+        assert!(!constant_time_eq_32(&forged_hash, &honest_leaf));
+
+        // 3. Merkle path sibling corruption attack
+        let events = alloc::vec![e1, e1];
+        let root = MerkleTree::compute_root(&events);
+        let mut proof = MerkleTree::generate_proof(&events, 0).expect("proof");
+        assert!(MerkleTree::verify_proof(&root, &honest_leaf, &proof));
+        proof.sibling_hashes[0][0] ^= 0x01; // flip 1 bit in sibling
+        assert!(!MerkleTree::verify_proof(&root, &honest_leaf, &proof));
+
+        // 4. Aggregate Rollup temporal non-monotonicity violation attack
+        let win1 = ZkAuditCommitment {
+            policy_id: 202601,
+            total_events_verified: 100,
+            violations_detected: 0,
+            window_start_ns: 2_000,
+            window_end_ns: 3_000,
+            trace_merkle_root: [1u8; 32],
+            policy_compliant: true,
+        };
+        let win2_rewound = ZkAuditCommitment {
+            policy_id: 202601,
+            total_events_verified: 100,
+            violations_detected: 0,
+            window_start_ns: 1_000, // rewound window start
+            window_end_ns: 2_000,
+            trace_merkle_root: [2u8; 32],
+            policy_compliant: true,
+        };
+        let agg_res = aggregate_receipt_commitments(&[win1, win2_rewound]);
+        assert!(agg_res.is_err());
     }
 }

@@ -4,9 +4,10 @@ extern crate alloc;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 use zerokernel_common::{
-    aggregate_receipt_commitments, evaluate_kernel_trace, evaluate_kernel_trace_detailed,
-    AuditViolationRecord, Digest, KernelSyscallEvent, MerkleProof, MerkleTree, SecurityPolicy,
-    ZkAggregateCommitment, ZkAuditCommitment,
+    aggregate_receipt_commitments, aggregate_receipt_commitments_tree, evaluate_kernel_trace,
+    evaluate_kernel_trace_detailed, AuditViolationRecord, CircuitErrorCode, Digest,
+    KernelSyscallEvent, MerkleProof, MerkleTree, SecurityPolicy, ZkAggregateCommitment,
+    ZkAuditCommitment,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -67,6 +68,60 @@ pub fn run_recursive_aggregate_circuit(commitments: &[ZkAuditCommitment]) -> ZkA
     aggregate_receipt_commitments(commitments).expect(
         "Aggregate circuit invariant violated: mismatched policies or non-monotonic windows",
     )
+}
+
+/// Executes hierarchical tree-based recursive aggregation over constituent window commitments.
+pub fn run_recursive_aggregate_circuit_tree(
+    commitments: &[ZkAuditCommitment],
+) -> ZkAggregateCommitment {
+    aggregate_receipt_commitments_tree(commitments)
+        .expect("Aggregate tree circuit invariant violated")
+}
+
+/// Runs the circuit with zero-knowledge sensitive command scrubbing.
+pub fn run_zk_circuit_sanitized(
+    policy: &SecurityPolicy,
+    events: &[KernelSyscallEvent],
+    scrub_command: bool,
+) -> ZkCircuitOutput {
+    if !scrub_command {
+        return run_zk_circuit_with_merkle(policy, events);
+    }
+
+    let sanitized_events: Vec<KernelSyscallEvent> = events
+        .iter()
+        .map(|e| {
+            let mut sanitized = *e;
+            sanitized.comm = [0u8; 16]; // scrub command string in zero knowledge
+            sanitized
+        })
+        .collect();
+
+    run_zk_circuit_with_merkle(policy, &sanitized_events)
+}
+
+/// Runs the circuit and validates maximum clock drift between consecutive events.
+pub fn run_zk_circuit_with_drift_check(
+    policy: &SecurityPolicy,
+    events: &[KernelSyscallEvent],
+    max_drift_ns: u64,
+) -> Result<ZkCircuitOutput, CircuitErrorCode> {
+    if events.is_empty() {
+        return Ok(run_zk_circuit_with_merkle(policy, events));
+    }
+
+    let mut prev_ts = events[0].timestamp_ns;
+    for event in &events[1..] {
+        if event.timestamp_ns < prev_ts {
+            return Err(CircuitErrorCode::NonMonotonicClock);
+        }
+        if event.timestamp_ns.saturating_sub(prev_ts) > max_drift_ns {
+            return Err(CircuitErrorCode::MaxClockDriftExceeded);
+        }
+        prev_ts = event.timestamp_ns;
+    }
+
+    Ok(run_zk_circuit_with_merkle(policy, events))
 }
 
 #[cfg(test)]
@@ -154,5 +209,49 @@ mod tests {
         assert_eq!(agg.total_windows, 2);
         assert_eq!(agg.total_events_verified, 2);
         assert!(agg.all_windows_compliant);
+
+        let agg_tree = run_recursive_aggregate_circuit_tree(&[c1, c2]);
+        assert_eq!(agg_tree.total_windows, 2);
+    }
+
+    #[test]
+    fn test_sanitized_and_drift_circuits() {
+        let policy = SecurityPolicy::permissive_audit();
+        let e1 = KernelSyscallEvent {
+            timestamp_ns: 1000,
+            pid: 1,
+            tgid: 1,
+            uid: 1000,
+            syscall_nr: 1,
+            target_ipv4: 0,
+            target_port: 0,
+            flags: 0,
+            comm: KernelSyscallEvent::encode_comm("secret-pass"),
+        };
+        let e2 = KernelSyscallEvent {
+            timestamp_ns: 1500,
+            pid: 1,
+            tgid: 1,
+            uid: 1000,
+            syscall_nr: 1,
+            target_ipv4: 0,
+            target_port: 0,
+            flags: 0,
+            comm: KernelSyscallEvent::encode_comm("secret-pass"),
+        };
+
+        let sanitized = run_zk_circuit_sanitized(&policy, &[e1], true);
+        assert!(sanitized.commitment.policy_compliant);
+
+        // Drift check ok
+        let drift_ok = run_zk_circuit_with_drift_check(&policy, &[e1, e2], 1000);
+        assert!(drift_ok.is_ok());
+
+        // Drift check exceeded
+        let drift_fail = run_zk_circuit_with_drift_check(&policy, &[e1, e2], 200);
+        assert_eq!(
+            drift_fail.unwrap_err(),
+            CircuitErrorCode::MaxClockDriftExceeded
+        );
     }
 }

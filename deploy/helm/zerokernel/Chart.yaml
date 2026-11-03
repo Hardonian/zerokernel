@@ -1,0 +1,19 @@
+apiVersion: v2
+name: zerokernel
+description: Production Helm chart for ZeroKernel zero-knowledge cryptographic kernel runtime auditor.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - security
+  - ebpf
+  - zkvm
+  - audit
+  - sp1
+  - zero-knowledge
+home: https://github.com/hardonian/zerokernel
+sources:
+  - https://github.com/hardonian/zerokernel
+maintainers:
+  - name: ZeroKernel Engineering Team
+    email: security@zerokernel.dev

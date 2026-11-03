@@ -1,0 +1,74 @@
+# ZeroKernel v1.0 Production Configuration
+# Supports environment variable overrides with prefix ZEROKERNEL_*
+
+[daemon]
+# Poll interval in milliseconds for eBPF ring buffer / synthetic events
+poll_interval_ms = 50
+# Window aggregation period in seconds
+window_period_seconds = 60
+# Number of events per Merkle batch
+batch_size = 4096
+# Ring-0 eBPF perf/ring buffer size in pages (must be power of 2)
+ringbuf_pages = 64
+# Ingestion memory pool capacity (number of pre-allocated syscall event structs)
+event_pool_capacity = 65536
+
+[prover]
+# Prover backend: "mock", "cpu-stark", "sp1-local", "sp1-cuda", or "sp1-network"
+backend = "mock"
+# zkVM circuit elf path (optional override)
+guest_elf_path = "target/riscv32im-succinct-zkvm-elf/release/zerokernel-zk-guest"
+# CPU concurrency / thread pool size (0 = auto-detect CPU cores)
+worker_threads = 4
+# Maximum allowed clock drift between events in nanoseconds (10 seconds)
+max_clock_drift_ns = 10000000000
+# Sanitization: scrub sensitive command arguments and passwords in guest
+sanitize_commands = true
+
+[policy]
+# Default active policy ID (e.g. 202601 for Linux Invariant, 2002 for Egress Guard)
+active_policy_id = 202601
+# Policy evaluation mode: "strict" (block/violation on first anomaly) or "audit" (record only)
+mode = "strict"
+# Maximum aggregate tree depth for recursive folding
+max_rollup_tree_depth = 16
+
+[storage]
+# Storage driver: "sqlite", "rocksdb", or "memory"
+driver = "sqlite"
+# Path to local database file
+database_path = "/var/lib/zerokernel/receipts.db"
+# Enable Merkle Mountain Range (MMR) append-only accumulator logging
+enable_mmr = true
+
+[observability]
+# Log format: "json" or "pretty"
+log_format = "pretty"
+# Minimum log level: "trace", "debug", "info", "warn", "error"
+log_level = "info"
+# Prometheus metrics exporter listen address (empty to disable)
+metrics_address = "127.0.0.1:9100"
+# OpenTelemetry collector endpoint (OTLP gRPC/HTTP)
+otlp_endpoint = ""
+
+[dashboard]
+# Enable embedded web dashboard
+enabled = true
+# Dashboard listen address
+listen_address = "127.0.0.1:3000"
+# TLS certificate file (optional for HTTPS)
+tls_cert_path = ""
+# TLS private key file (optional for HTTPS)
+tls_key_path = ""
+# API authentication token (empty to disable auth)
+auth_token = ""
+
+[onchain]
+# RPC provider URL for EVM attestation
+rpc_url = "http://127.0.0.1:8545"
+# Deployed ZeroKernelVerifier contract address
+verifier_address = "0x0000000000000000000000000000000000000000"
+# Chain ID (e.g. 1 for Ethereum Mainnet, 84532 for Base Sepolia, 421614 for Arbitrum Sepolia)
+chain_id = 84532
+# Relayer private key or KMS key ID for gasless / automated proof relays
+relayer_key = ""

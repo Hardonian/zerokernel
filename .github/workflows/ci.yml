@@ -31,9 +31,62 @@ jobs:
 
       - name: End-to-End Prove & Sub-Millisecond Verify Smoke Flow
         run: |
+          cargo run --release --bin zerokernel -- doctor
           cargo run --release --bin zerokernel -- prove \
             --capture-mode simulate-ringbuf \
             --event-count 4096 \
             --output /tmp/compliant.zk.json
           cargo run --release --bin zerokernel -- verify \
             --receipt-path /tmp/compliant.zk.json
+          cargo run --release --bin zerokernel -- proof-inspect \
+            --receipt /tmp/compliant.zk.json \
+            --leaf-index 0
+
+  verify-contracts:
+    name: On-Chain Foundry Smart Contract Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+      - name: Run Forge Format Check
+        run: forge fmt --check
+      - name: Run Forge Invariant & Unit Tests
+        run: forge test -vvv
+
+  verify-sdks:
+    name: AI Agent SDKs (Python & TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Test Python SDK
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e sdk/python
+          python -m unittest sdk/python/tests/test_sdk.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Test TypeScript SDK
+        run: |
+          cd sdk/typescript
+          npm ci
+          npm run build
+          npm test
+
+  verify-docs-lint:
+    name: Markdown Lint & Documentation Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Lint Markdown Files
+        run: npx markdownlint-cli --ignore "**/node_modules/**" "**/*.md"

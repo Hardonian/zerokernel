@@ -46,5 +46,18 @@ export class ZeroKernelVerifier {
     const expectedSeal = hasher.digest("hex");
     return expectedSeal === receipt.master_proof_seal_hex;
   }
+
+  /**
+   * Validates a ZeroKernel execution receipt before an on-chain or Web3 escrow payment is released.
+   */
+  public static verifyEscrowReceipt(receipt: ZeroKernelReceipt, maxViolations: number = 0): boolean {
+    if (receipt.proof_seal_hex.length !== 64 || receipt.vkey_hash.length !== 64) {
+      return false;
+    }
+    if (receipt.public_commitment.violations_detected > maxViolations) {
+      return false;
+    }
+    return receipt.public_commitment.policy_compliant;
+  }
 }
 

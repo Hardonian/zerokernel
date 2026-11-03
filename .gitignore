@@ -8,6 +8,7 @@ test_policy*.json
 stream_proofs/
 sp1/elf/
 contracts/out/
+cache/
 .DS_Store
 .env
 **/__pycache__/

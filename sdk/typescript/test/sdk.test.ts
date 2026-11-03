@@ -7,6 +7,8 @@ import {
   withZeroKernelAudit,
   ZeroKernelReceipt,
   ZeroKernelAggregateReceipt,
+  detectC2Exfiltration,
+  ZeroKernelCallbackHandler,
 } from "../src";
 
 async function runTests() {
@@ -133,6 +135,38 @@ async function runTests() {
     assert.strictEqual(res.data.answer, 42);
     assert.strictEqual(res.compliant, true);
     assert.strictEqual(res.receipt.public_commitment.policy_compliant, true);
+
+    // 6. Heuristics & Escrow validation
+    console.log("  Testing heuristics and escrow validation...");
+    assert.strictEqual(ZeroKernelVerifier.verifyEscrowReceipt(receipt, 0), true);
+    assert.strictEqual(
+      detectC2Exfiltration([
+        {
+          timestamp_ns: 1000,
+          pid: 1,
+          tgid: 1,
+          uid: 1000,
+          syscall_nr: 42,
+          target_port: 6667,
+          comm: "rogue",
+        },
+      ]),
+      true
+    );
+    assert.strictEqual(
+      detectC2Exfiltration([
+        {
+          timestamp_ns: 1000,
+          pid: 1,
+          tgid: 1,
+          uid: 1000,
+          syscall_nr: 257,
+          target_port: 443,
+          comm: "benign",
+        },
+      ]),
+      false
+    );
   } catch (err: any) {
     if (err.code === "ENOENT" || err.message?.includes("zerokernel")) {
       console.log("    (Skipping binary invocation: zerokernel executable not in PATH or release dir)");

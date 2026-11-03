@@ -12,7 +12,12 @@ from .models import (
 )
 from .client import ZeroKernelClient
 from .verifier import ZeroKernelVerifier
-from .decorator import audit_agent
+from .decorator import audit_agent, async_audit_agent
+from .heuristics import (
+    detect_c2_exfiltration,
+    verify_escrow_receipt,
+    ZeroKernelCallbackHandler,
+)
 
 __all__ = [
     "KernelSyscallEvent",
@@ -23,6 +28,10 @@ __all__ = [
     "ZeroKernelClient",
     "ZeroKernelVerifier",
     "audit_agent",
+    "async_audit_agent",
+    "detect_c2_exfiltration",
+    "verify_escrow_receipt",
+    "ZeroKernelCallbackHandler",
 ]
 
 __version__ = "0.1.0"

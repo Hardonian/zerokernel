@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Release.Name }}-auditor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: zerokernel
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zerokernel
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zerokernel
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.config.metricsPort }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: zerokernel
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "monitor"
+            - "--window-size"
+            - "{{ .Values.config.windowSize }}"
+            - "--max-windows"
+            - "{{ .Values.config.maxWindows }}"
+            - "--metrics-port"
+            - "{{ .Values.config.metricsPort }}"
+            - "--output-dir"
+            - "{{ .Values.config.receiptOutputDir }}"
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - BPF
+                - NET_ADMIN
+                - SYS_RESOURCE
+                - PERFMON
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.config.metricsPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: sys-kernel-btf
+              mountPath: /sys/kernel/btf
+              readOnly: true
+            - name: sys-fs-bpf
+              mountPath: /sys/fs/bpf
+            - name: zerokernel-receipts
+              mountPath: {{ .Values.config.receiptOutputDir }}
+      volumes:
+        - name: sys-kernel-btf
+          hostPath:
+            path: /sys/kernel/btf
+        - name: sys-fs-bpf
+          hostPath:
+            path: /sys/fs/bpf
+        - name: zerokernel-receipts
+          hostPath:
+            path: {{ .Values.config.receiptOutputDir }}
+            type: DirectoryOrCreate
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}

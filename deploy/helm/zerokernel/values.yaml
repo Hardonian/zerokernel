@@ -1,0 +1,49 @@
+# Default values for zerokernel Helm chart.
+
+image:
+  repository: ghcr.io/hardonian/zerokernel
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: "zerokernel-auditor"
+
+rbac:
+  create: true
+
+config:
+  windowSize: 4096
+  maxWindows: 0
+  metricsPort: 9100
+  logLevel: "info"
+  policyId: 202601
+  receiptOutputDir: "/var/log/zerokernel/receipts"
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  scrapeTimeout: 10s
+  labels:
+    release: prometheus
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+  - operator: Exists
+    effect: NoExecute
+
+nodeSelector: {}
+affinity: {}

@@ -1,0 +1,15 @@
+PackageIdentifier: ZeroKernel.ZeroKernel
+PackageVersion: 1.0.0
+PackageName: ZeroKernel
+Publisher: ZeroKernel
+License: MIT or Apache-2.0
+ShortDescription: Zero-knowledge kernel runtime and autonomous AI agent execution auditor
+Installers:
+  - Architecture: x64
+    InstallerType: zip
+    InstallerUrl: https://github.com/hardonian/zerokernel/releases/download/v1.0.0/zerokernel-x86_64-pc-windows-msvc.zip
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+    Commands:
+      - zerokernel
+ManifestType: singleton
+ManifestVersion: 1.6.0
