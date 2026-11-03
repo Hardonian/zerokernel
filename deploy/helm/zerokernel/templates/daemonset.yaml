@@ -73,3 +73,4 @@ spec:
             type: DirectoryOrCreate
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
+

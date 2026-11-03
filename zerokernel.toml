@@ -72,3 +72,4 @@ verifier_address = "0x0000000000000000000000000000000000000000"
 chain_id = 84532
 # Relayer private key or KMS key ID for gasless / automated proof relays
 relayer_key = ""
+

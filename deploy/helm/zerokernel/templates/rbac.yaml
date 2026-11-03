@@ -41,3 +41,4 @@ subjects:
     name: {{ .Values.serviceAccount.name }}
     namespace: {{ .Release.Namespace }}
 {{- end }}
+

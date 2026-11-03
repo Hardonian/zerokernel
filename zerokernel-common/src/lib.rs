@@ -1003,17 +1003,11 @@ mod tests {
         siblings.extend_from_slice(&empties[..SparseMerkleTree::DEPTH]);
 
         // An empty SMT verifies non-membership for any key
-        assert!(SparseMerkleTree::verify_non_membership(
-            &root, 42, &siblings
-        ));
+        assert!(SparseMerkleTree::verify_non_membership(&root, 42, &siblings));
 
         // Wrong root fails
         let bogus_root = [99u8; 32];
-        assert!(!SparseMerkleTree::verify_non_membership(
-            &bogus_root,
-            42,
-            &siblings
-        ));
+        assert!(!SparseMerkleTree::verify_non_membership(&bogus_root, 42, &siblings));
     }
 
     #[test]

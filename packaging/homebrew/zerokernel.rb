@@ -16,3 +16,4 @@ class Zerokernel < Formula
     system "#{bin}/zerokernel", "doctor"
   end
 end
+
